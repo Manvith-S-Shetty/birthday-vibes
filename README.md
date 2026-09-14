@@ -13,6 +13,46 @@ Birthday Vibes has two sides:
 
 The product is built around a simple principle: **personalization, photography, typography, atmosphere, and motion should carry the experience—not dashboard UI or feature overload.**
 
+## Product Preview
+
+Birthday Vibes is a cinematic digital birthday-gift experience that combines personalized memories, private sharing, music, storytelling, and interactive birthday moments.
+
+### Landing Experience
+
+![Birthday Vibes landing experience](docs/screenshots/01-homepage.png)
+
+### Creator Studio
+
+![Birthday Vibes Creator Studio](docs/screenshots/02-creator-studio.png)
+
+### Aesthetic Themes & Moods
+
+![Birthday Vibes theme selection](docs/screenshots/03-theme-selection.png)
+
+### Memory Curation
+
+![Birthday Vibes photo curation](docs/screenshots/04-memory-creation.png)
+
+### Recipient Locked Experience
+
+![Birthday Vibes locked recipient experience](docs/screenshots/05-locked-experience.png)
+
+### Recipient Memory Wall
+
+![Birthday Vibes memory wall](docs/screenshots/06-memory-wall.png)
+
+### Letter & Candle Interaction
+
+![Birthday Vibes letter scene](docs/screenshots/07-letter-scene.png)
+
+![Birthday Vibes cake scene](docs/screenshots/08-cake-scene.png)
+
+### Birthday Finale & Mobile Experience
+
+![Birthday Vibes birthday finale](docs/screenshots/09-finale.png)
+
+![Birthday Vibes mobile experience](docs/screenshots/10-mobile-recipient.png)
+
 ## Experience Flow
 
 ### Creator
