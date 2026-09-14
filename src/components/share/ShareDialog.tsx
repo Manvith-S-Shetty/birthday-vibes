@@ -31,7 +31,7 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ shareUrl, recipientNam
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `A Birthday Wishlight for ${recipientName}`,
+          title: `A Birthday Gift for ${recipientName} — Birthday Vibes`,
           text: `I created a private cinematic birthday gift for ${recipientName}. Take a look!`,
           url: shareUrl,
         });

@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { checkPinRateLimit, recordFailedPinAttempt, resetPinRateLimit } from "@/lib/security/rateLimit";
 import { verifyPin } from "@/lib/security/hash";
 import { setRecipientAuthCookie } from "@/lib/security/session";
-import { SeedExperienceRepository } from "@/lib/experience/SeedExperienceRepository";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
+import { SeedExperienceRepository } from "@/lib/experience/SeedExperienceRepository";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
@@ -36,8 +38,18 @@ export async function POST(
 
   const submittedPin = (body.pin || "").trim();
   let isValidPin = false;
+  let experienceFound = false;
 
-  if (isSupabaseConfigured()) {
+  if (slug === "demo") {
+    const seedRepo = new SeedExperienceRepository();
+    const seed = await seedRepo.getExperienceBySlug("demo");
+    if (seed) {
+      experienceFound = true;
+      if (!seed.isPinProtected || !seed.pin || submittedPin === seed.pin.trim()) {
+        isValidPin = true;
+      }
+    }
+  } else if (isSupabaseConfigured()) {
     try {
       const { data, error } = await (supabaseAdminClient as any)
         .from("experiences")
@@ -46,6 +58,7 @@ export async function POST(
         .single();
 
       if (!error && data && data.status === "published") {
+        experienceFound = true;
         if (!data.is_pin_protected || !data.pin_hash || !data.pin_salt) {
           isValidPin = true;
         } else {
@@ -53,15 +66,12 @@ export async function POST(
         }
       }
     } catch (e) {
-      console.warn("Supabase PIN verification fallback:", e);
+      console.warn("Supabase PIN verification query error:", e);
     }
-  } else {
-    // Seed / Local Fallback
-    const seedRepo = new SeedExperienceRepository();
-    const seed = await seedRepo.getExperienceBySlug(slug);
-    if (!seed.isPinProtected || !seed.pin || submittedPin === seed.pin.trim()) {
-      isValidPin = true;
-    }
+  }
+
+  if (!experienceFound) {
+    return NextResponse.json({ error: "Experience not found" }, { status: 404 });
   }
 
   if (!isValidPin) {
@@ -72,7 +82,7 @@ export async function POST(
     );
   }
 
-  // Verification succeeded: reset rate limit & set HttpOnly Auth Cookie
+  // Verification succeeded: reset rate limit & set HttpOnly Auth Cookie for THIS SLUG ONLY
   resetPinRateLimit(rateLimitKey);
   setRecipientAuthCookie(slug);
 

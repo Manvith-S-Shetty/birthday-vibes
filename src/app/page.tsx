@@ -2,18 +2,14 @@ import { Display, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { Sparkles, ArrowRight, PlusCircle, Palette } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col justify-between bg-film-grain text-[var(--theme-text-primary)]">
       {/* Top Navigation Bar with Direct Create Option */}
       <header className="w-full max-w-7xl mx-auto p-6 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-[var(--theme-accent-primary)]" />
-          <span className="font-serif text-xl font-medium tracking-wide text-gold-gradient">
-            Wishlight
-          </span>
-        </div>
+        <BrandLogo variant="lockup" size="sm" />
         <div className="flex items-center gap-3">
           <Button href="/create" variant="champagne-outline" size="sm">
             <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -56,8 +52,9 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="w-full max-w-7xl mx-auto p-6 text-center text-xs text-[var(--theme-text-secondary)] z-10 opacity-70">
-        Wishlight — Elegant Digital Birthday Experience Platform
+        Birthday Vibes — Elegant Digital Birthday Experience Platform
       </footer>
     </div>
   );
 }
+

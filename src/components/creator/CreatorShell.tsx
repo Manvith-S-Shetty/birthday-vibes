@@ -20,6 +20,7 @@ import { StepPublishPlaceholder } from "./steps/StepPublishPlaceholder";
 
 import { Sparkles, Eye, X, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const STEPS: { id: CreatorStep; label: string; number: string }[] = [
   { id: "recipient", label: "Recipient", number: "01" },
@@ -131,12 +132,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
       {/* Top Header / Progress Nav */}
       <header className="border-b border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)]/90 backdrop-blur-md py-3 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <span className="font-serif text-lg sm:text-xl font-normal text-gold-gradient tracking-wide">
-            Wishlight Studio
-          </span>
-          <span className="text-xs text-[var(--theme-text-secondary)] hidden sm:inline-block border-l border-white/10 pl-3 uppercase tracking-widest font-sans">
-            Gift Director
-          </span>
+          <BrandLogo variant="lockup" size="sm" />
         </div>
 
         {/* Step Indicator Pills */}

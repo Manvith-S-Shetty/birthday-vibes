@@ -68,7 +68,7 @@ export function FinaleScene({ data, onReplay }: FinaleSceneProps) {
         </Body>
 
         <div className="pt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[var(--theme-bg-card)] text-xs text-[var(--theme-text-accent)]">
-          <span>Curated with love • Wishlight Keepsake</span>
+          <span>Curated with love • Birthday Vibes Keepsake</span>
         </div>
       </motion.div>
 
@@ -87,7 +87,7 @@ export function FinaleScene({ data, onReplay }: FinaleSceneProps) {
         </div>
 
         <Caption className="block text-[10px] uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-60">
-          Created with Wishlight Digital Gift Engine
+          Created with Birthday Vibes Digital Gift Engine
         </Caption>
       </motion.div>
     </div>

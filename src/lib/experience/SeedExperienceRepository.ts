@@ -47,31 +47,11 @@ export const SEEDED_DEMO_EXPERIENCE: ExperienceData = {
 };
 
 export class SeedExperienceRepository {
-  async getExperienceBySlug(slug: string): Promise<ExperienceData> {
-    if (typeof window !== "undefined") {
-      const draft = await localDraftRepository.getDraft();
-      if (draft && draft.recipientName) {
-        return {
-          id: draft.id,
-          slug: draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || slug,
-          recipientName: draft.recipientName,
-          birthdayDate: draft.birthdayDate,
-          themeId: draft.themeId,
-          personalMessage: draft.personalMessage || SEEDED_DEMO_EXPERIENCE.personalMessage,
-          photos: draft.photos.length > 0 ? draft.photos : SEEDED_DEMO_EXPERIENCE.photos,
-          musicTitle: draft.musicTitle || SEEDED_DEMO_EXPERIENCE.musicTitle,
-          musicUrl: draft.musicUrl || SEEDED_DEMO_EXPERIENCE.musicUrl,
-          isPinProtected: draft.isPinProtected,
-          pin: draft.pin || "2026",
-          createdAt: draft.createdAt,
-        };
-      }
+  async getExperienceBySlug(slug: string): Promise<ExperienceData | null> {
+    if (slug === "demo") {
+      return SEEDED_DEMO_EXPERIENCE;
     }
-
-    return {
-      ...SEEDED_DEMO_EXPERIENCE,
-      slug,
-    };
+    return null;
   }
 }
 

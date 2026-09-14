@@ -103,7 +103,7 @@ export function LetterScene({ data, onNext, onPrev }: LetterSceneProps) {
           <span className="font-serif italic text-base text-[var(--theme-text-accent)]">
             With endless warmth & affection
           </span>
-          <Caption>Wishlight Digital Keepsake</Caption>
+          <Caption>Birthday Vibes Keepsake</Caption>
         </div>
       </motion.div>
 

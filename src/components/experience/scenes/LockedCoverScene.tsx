@@ -139,9 +139,9 @@ export function LockedCoverScene({ data, onUnlock }: LockedCoverSceneProps) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-50"
+        className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-50 pointer-events-none"
       >
-        Wishlight Private Experience Engine
+        Birthday Vibes Private Experience Engine
       </motion.div>
     </div>
   );
