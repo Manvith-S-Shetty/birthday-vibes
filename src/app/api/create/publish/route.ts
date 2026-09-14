@@ -70,19 +70,62 @@ export async function POST(request: Request) {
 
       if (expError) throw expError;
 
-      // Media Persistence
+      // Media Persistence & Storage Upload
       if (draft.photos && draft.photos.length > 0) {
         await (supabaseAdminClient as any).from("media").delete().eq("experience_id", exp.id);
-        const mediaInserts = draft.photos.map((p, idx) => ({
-          experience_id: exp.id,
-          storage_path: p.url,
-          mime_type: "image/jpeg",
-          file_size: 1024,
-          type: "image",
-          caption: p.caption || null,
-          sort_order: idx + 1,
-        }));
-        await (supabaseAdminClient as any).from("media").insert(mediaInserts);
+
+        const mediaInserts = [];
+        for (let idx = 0; idx < draft.photos.length; idx++) {
+          const p = draft.photos[idx];
+          let storagePath = p.url;
+          let mimeType = "image/jpeg";
+          let fileSize = 1024;
+
+          if (p.url && p.url.startsWith("data:")) {
+            const mimeMatch = p.url.match(/^data:([^;]+);base64,/);
+            if (mimeMatch) {
+              mimeType = mimeMatch[1];
+            }
+            const ext = mimeType.split("/")[1] || "jpg";
+            const base64Data = p.url.split(";base64,").pop() || "";
+            const buffer = Buffer.from(base64Data, "base64");
+            fileSize = buffer.length;
+
+            const fileId = p.id || `photo_${idx + 1}`;
+            storagePath = `${exp.id}/${fileId}.${ext}`;
+
+            const { error: uploadError } = await supabaseAdminClient.storage
+              .from("experience-media")
+              .upload(storagePath, buffer, {
+                contentType: mimeType,
+                upsert: true,
+              });
+
+            if (uploadError) {
+              console.error("Supabase Storage photo upload failed:", storagePath, uploadError);
+              throw uploadError;
+            }
+          }
+
+          mediaInserts.push({
+            experience_id: exp.id,
+            storage_path: storagePath,
+            type: "image",
+            caption: p.caption || null,
+            sort_order: idx + 1,
+            metadata: {
+              mime_type: mimeType,
+              file_size: fileSize,
+            },
+          });
+        }
+
+        if (mediaInserts.length > 0) {
+          const { error: mediaError } = await (supabaseAdminClient as any)
+            .from("media")
+            .insert(mediaInserts);
+          if (mediaError) throw mediaError;
+        }
       }
 
       // Music Persistence

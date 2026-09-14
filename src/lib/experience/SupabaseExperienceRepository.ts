@@ -81,11 +81,22 @@ export class SupabaseExperienceRepository {
           const photos: MediaItem[] = await Promise.all(
             (mediaRows || []).map(async (m: any) => {
               let url = m.storage_path;
-              if (m.storage_path.startsWith("experience-media/")) {
-                const { data: signed } = await supabaseAdminClient.storage
+              if (
+                m.storage_path &&
+                !m.storage_path.startsWith("http://") &&
+                !m.storage_path.startsWith("https://") &&
+                !m.storage_path.startsWith("data:")
+              ) {
+                let storageKey = m.storage_path;
+                if (storageKey.startsWith("experience-media/")) {
+                  storageKey = storageKey.replace("experience-media/", "");
+                }
+                const { data: signed, error: signError } = await supabaseAdminClient.storage
                   .from("experience-media")
-                  .createSignedUrl(m.storage_path.replace("experience-media/", ""), 600);
-                if (signed) url = signed.signedUrl;
+                  .createSignedUrl(storageKey, 3600);
+                if (!signError && signed?.signedUrl) {
+                  url = signed.signedUrl;
+                }
               }
 
               return {

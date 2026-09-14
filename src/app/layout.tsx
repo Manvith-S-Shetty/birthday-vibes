@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: "Birthday Vibes — Elegant Cinematic Birthday Experience",
   description: "A luxury personalized digital birthday gift experience made for one person.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
