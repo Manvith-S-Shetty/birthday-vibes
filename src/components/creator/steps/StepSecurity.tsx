@@ -115,7 +115,7 @@ export function StepSecurity({ draft, onUpdate, onNext, onPrev }: StepSecurityPr
       </div>
 
       <div className="pt-4 flex items-center justify-between">
-        <Button variant="ghost" size="md" onClick={onPrev}>
+        <Button variant="ghost" size="md" type="button" onClick={onPrev}>
           <ArrowLeft className="w-4 h-4 mr-1" />
           <span>Back</span>
         </Button>

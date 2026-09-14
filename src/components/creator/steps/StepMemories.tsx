@@ -29,9 +29,10 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
     }
 
     setError("");
-    const newItems: MediaItem[] = [];
+    const fileList = Array.from(files);
+    const validFiles: File[] = [];
 
-    Array.from(files).forEach((file, idx) => {
+    for (const file of fileList) {
       if (!file.type.startsWith("image/")) {
         setError("Only image files (JPG, PNG, WebP) are supported.");
         return;
@@ -40,19 +41,38 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
         setError("File size should be under 10MB per image.");
         return;
       }
+      validFiles.push(file);
+    }
 
-      const objectUrl = URL.createObjectURL(file);
-      newItems.push({
-        id: `img_${Date.now()}_${idx}`,
-        url: objectUrl,
-        type: "image",
-        caption: file.name.replace(/\.[^/.]+$/, ""),
-        sortOrder: draft.photos.length + idx + 1,
-      });
+    if (validFiles.length === 0) return;
+
+    let processedCount = 0;
+    const newItems: MediaItem[] = [];
+    const currentCount = draft.photos.length;
+
+    validFiles.forEach((file, idx) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          newItems.push({
+            id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${idx}`,
+            url: event.target.result as string,
+            type: "image",
+            caption: file.name.replace(/\.[^/.]+$/, ""),
+            sortOrder: currentCount + idx + 1,
+          });
+        }
+        processedCount++;
+        if (processedCount === validFiles.length) {
+          onUpdate({ photos: [...draft.photos, ...newItems] });
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+      };
+      reader.onerror = () => {
+        setError("Failed to read image file.");
+      };
+      reader.readAsDataURL(file);
     });
-
-    onUpdate({ photos: [...draft.photos, ...newItems] });
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleRemove = (id: string) => {
