@@ -22,21 +22,24 @@ export function StepSecurity({ draft, onUpdate, onNext, onPrev }: StepSecurityPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!pin) {
+    const cleanPin = pin.trim();
+    const cleanConfirm = confirmPin.trim();
+
+    if (!cleanPin) {
       setError("Please set a 4 to 6 digit secret PIN to protect this experience.");
       return;
     }
-    if (pin.length < 4 || pin.length > 6) {
+    if (cleanPin.length < 4 || cleanPin.length > 6) {
       setError("PIN should be between 4 and 6 digits/characters.");
       return;
     }
-    if (pin !== confirmPin) {
+    if (cleanPin !== cleanConfirm) {
       setError("PIN and confirmation do not match.");
       return;
     }
 
     setError("");
-    onUpdate({ pin, isPinProtected: true });
+    onUpdate({ pin: cleanPin, isPinProtected: true });
     onNext();
   };
 

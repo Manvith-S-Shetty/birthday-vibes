@@ -29,9 +29,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. Generate high-entropy slug & salted PIN hash
+  // 2. Validate PIN and generate high-entropy slug & salted PIN hash
+  const pin = (draft.pin || "").trim();
+  if (draft.isPinProtected && !pin) {
+    return NextResponse.json(
+      { error: "A PIN is required before publishing." },
+      { status: 400 }
+    );
+  }
+
   const slug = generateHighEntropySlug(draft.recipientName);
-  const { hash, salt } = hashPin(draft.pin || "2026");
+  const { hash, salt } = hashPin(pin);
 
   if (isSupabaseConfigured()) {
     try {
@@ -90,7 +98,11 @@ export async function POST(request: Request) {
         });
       }
     } catch (e) {
-      console.warn("Supabase publish fallback:", e);
+      console.error("Supabase publish error:", e);
+      return NextResponse.json(
+        { error: "Failed to persist experience to database. Please try again." },
+        { status: 500 }
+      );
     }
   }
 
