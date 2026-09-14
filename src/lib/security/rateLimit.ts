@@ -44,12 +44,12 @@ export function recordFailedPinAttempt(key: string): void {
   }
 
   const updatedAttempts = record.attempts + 1;
-  const lockoutTime = updatedAttempts >= MAX_ATTEMPTS ? now + LOCKOUT_MS : 0;
 
+  // Preserve fixed window reset time so lockout cleanly expires after 15 minutes
   attemptStore.set(key, {
     attempts: updatedAttempts,
-    resetTime: now + WINDOW_MS,
-    lockoutTime,
+    resetTime: record.resetTime,
+    lockoutTime: updatedAttempts >= MAX_ATTEMPTS ? record.resetTime : 0,
   });
 }
 

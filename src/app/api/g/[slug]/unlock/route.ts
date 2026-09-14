@@ -15,7 +15,11 @@ export async function POST(
   const { slug } = params;
 
   // Rate Limiting check per IP + Slug
-  const ip = request.headers.get("x-forwarded-for") || "client_ip";
+  const rawIp =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "client_ip";
+  const ip = rawIp.split(",")[0].trim();
   const rateLimitKey = `pin_limit_${ip}_${slug}`;
   const rateCheck = checkPinRateLimit(rateLimitKey);
 
