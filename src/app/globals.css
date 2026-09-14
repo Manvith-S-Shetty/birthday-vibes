@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base Design System Tokens */
+    --token-ink: #0A0A0A;
+    --token-paper: #F5F1E8;
+    --token-warm-white: #FFFDF8;
+    --token-champagne: #C9A96E;
+    --token-muted-gold: #8F7447;
+    --token-smoke: #171717;
+    --token-mist: #D8D2C6;
+
+    /* Theme Defaults (Overridden dynamically by ThemeProvider) */
+    --theme-bg-primary: #08090C;
+    --theme-bg-secondary: #12141A;
+    --theme-bg-card: #1A1D26;
+    --theme-text-primary: #F5F1E8;
+    --theme-text-secondary: #A3A099;
+    --theme-text-accent: #D4AF37;
+    --theme-accent-primary: #D4AF37;
+    --theme-accent-secondary: #C9A96E;
+    --theme-accent-glow: rgba(212, 175, 55, 0.25);
+    --theme-border-subtle: rgba(212, 175, 55, 0.15);
+    --theme-border-strong: rgba(212, 175, 55, 0.4);
+
+    --font-serif: "Cormorant Garamond", Georgia, serif;
+    --font-sans: "Plus Jakarta Sans", "Inter", sans-serif;
+  }
+
+  body {
+    background-color: var(--theme-bg-primary);
+    color: var(--theme-text-primary);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.6s cubic-bezier(0.22, 1, 0.36, 1), color 0.4s ease;
+  }
+
+  /* Accessibility Focus Rings */
+  *:focus-visible {
+    outline: 2px solid var(--theme-accent-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Custom Luxury Editorial Styles */
+.font-display {
+  font-family: var(--font-serif);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #FFFDF8 0%, var(--theme-accent-primary) 50%, #C9A96E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Atmospheric Layers: Vignette & Film Grain */
+.vignette-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.65) 100%);
+}
+
+.bg-film-grain {
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.box-glow-sm {
+  box-shadow: 0 0 25px -5px var(--theme-accent-glow);
+}
+
+.box-glow-lg {
+  box-shadow: 0 0 50px -10px var(--theme-accent-glow);
+}
+
+/* Typographic Tracking Animation for Hero Entrances */
+@keyframes trackingExpand {
+  0% {
+    letter-spacing: -0.02em;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    letter-spacing: 0.08em;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tracking-cinematic {
+  animation: trackingExpand 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Scene Transition Layer Utility */
+.scene-transition-container {
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scene-transition-entering {
+  opacity: 0;
+  transform: scale(0.99);
+}
+
+.scene-transition-active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.scene-transition-exiting {
+  opacity: 0;
+  transform: scale(0.99);
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-tracking-cinematic {
+    animation: none !important;
+    letter-spacing: 0.08em !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
