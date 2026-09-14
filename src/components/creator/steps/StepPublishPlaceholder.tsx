@@ -26,7 +26,7 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
       setIsPublishing(true);
       setError(null);
 
-      const res = await publishExperience(draft.id);
+      const res = await publishExperience(draft);
       if (res.success && res.slug && res.shareUrl) {
         setPublishResult({ slug: res.slug, shareUrl: res.shareUrl });
       } else {

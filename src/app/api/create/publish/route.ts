@@ -5,8 +5,10 @@ import { localDraftRepository } from "@/lib/draft/LocalDraftRepository";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
 
+import { BirthdayDraft } from "@/types/draft";
+
 export async function POST(request: Request) {
-  let body: { draftId?: string };
+  let body: { draftId?: string; draft?: BirthdayDraft };
   try {
     body = await request.json();
   } catch {
@@ -18,7 +20,7 @@ export async function POST(request: Request) {
   const creatorTokenHash = hashCreatorSecret(creatorSecret);
 
   const draftId = body.draftId || "draft_default";
-  const draft = await localDraftRepository.getDraft(draftId);
+  const draft = body.draft || (await localDraftRepository.getDraft(draftId));
 
   if (!draft || !draft.recipientName.trim()) {
     return NextResponse.json(
@@ -34,26 +36,27 @@ export async function POST(request: Request) {
   if (isSupabaseConfigured()) {
     try {
       // Upsert experience using ONLY creator_token_hash (NEVER raw secret)
+      const experienceRow: any = {
+        creator_session_token: creatorTokenHash,
+        slug,
+        recipient_name: draft.recipientName,
+        birthday_date: draft.birthdayDate || null,
+        theme_id: draft.themeId,
+        personal_message: draft.personalMessage,
+        pin_hash: hash,
+        pin_salt: salt,
+        is_pin_protected: draft.isPinProtected,
+        status: "published",
+        current_step: "publish",
+        published_at: new Date().toISOString(),
+      };
+      if (draft.id && !draft.id.startsWith("draft_")) {
+        experienceRow.id = draft.id;
+      }
+
       const { data: exp, error: expError } = await (supabaseAdminClient as any)
         .from("experiences")
-        .upsert(
-          {
-            id: draft.id.startsWith("draft_") ? undefined : draft.id,
-            creator_token_hash: creatorTokenHash,
-            slug,
-            recipient_name: draft.recipientName,
-            birthday_date: draft.birthdayDate || null,
-            theme_id: draft.themeId,
-            personal_message: draft.personalMessage,
-            pin_hash: hash,
-            pin_salt: salt,
-            is_pin_protected: draft.isPinProtected,
-            status: "published",
-            current_step: "publish",
-            published_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        )
+        .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
         .select()
         .single();
 

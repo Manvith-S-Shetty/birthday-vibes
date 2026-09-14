@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { ThemeDefinition, ThemeId } from "@/types/theme";
 import { defaultThemeId, themes } from "@/lib/themes/definitions";
 
@@ -44,12 +44,19 @@ export function ThemeProvider({
     root.style.setProperty("--font-sans", currentTheme.fontSansFamily);
   }, [currentTheme]);
 
-  const value: ThemeContextType = {
-    themeId,
-    theme: currentTheme,
-    setTheme: setThemeId,
-    availableThemes: Object.values(themes),
-  };
+  const setTheme = useCallback((id: ThemeId) => {
+    setThemeId(id);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      themeId,
+      theme: currentTheme,
+      setTheme,
+      availableThemes: Object.values(themes),
+    }),
+    [themeId, currentTheme, setTheme]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

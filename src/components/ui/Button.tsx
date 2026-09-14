@@ -1,15 +1,21 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { motion, HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
 import { microHoverScale } from "@/lib/motion";
+
+const MotionLink = motion.create(Link);
 
 export interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
   children: React.ReactNode;
   variant?: "gold-glow" | "champagne-outline" | "solid-ink" | "velvet" | "ghost";
   size?: "sm" | "md" | "lg";
   className?: string;
+  href?: string;
+  target?: string;
+  rel?: string;
 }
 
 export function Button({
@@ -17,6 +23,9 @@ export function Button({
   variant = "gold-glow",
   size = "md",
   className,
+  href,
+  target,
+  rel,
   ...props
 }: ButtonProps) {
   const baseStyles =
@@ -41,13 +50,32 @@ export function Button({
       "bg-transparent text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)] hover:bg-[var(--theme-border-subtle)]",
   };
 
+  const combinedClasses = cn(baseStyles, sizeStyles[size], variantStyles[variant], className);
+
+  if (href) {
+    return (
+      <MotionLink
+        href={href}
+        target={target}
+        rel={rel}
+        variants={microHoverScale}
+        initial="rest"
+        whileHover="hover"
+        whileTap="tap"
+        className={combinedClasses}
+      >
+        {children}
+      </MotionLink>
+    );
+  }
+
   return (
     <motion.button
       variants={microHoverScale}
       initial="rest"
       whileHover="hover"
       whileTap="tap"
-      className={cn(baseStyles, sizeStyles[size], variantStyles[variant], className)}
+      className={combinedClasses}
       {...props}
     >
       {children}

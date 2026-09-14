@@ -67,22 +67,46 @@ export function StepRecipient({ draft, onUpdate, onNext }: StepRecipientProps) {
           {error && <p className="text-xs text-rose-400 font-sans mt-1">{error}</p>}
         </div>
 
-        {/* Optional Birthday Date Field */}
+        {/* Birthday Date Field */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="block font-sans text-xs uppercase tracking-widest text-[var(--theme-text-secondary)] font-medium">
+            <label
+              htmlFor="birthday-date"
+              className="block font-sans text-xs uppercase tracking-widest text-[var(--theme-text-secondary)] font-medium"
+            >
               Birthday Date <span className="text-xs opacity-60 lowercase font-normal">(optional)</span>
             </label>
           </div>
           <div className="relative">
             <input
-              type="text"
-              value={draft.birthdayDate || ""}
+              id="birthday-date"
+              type="date"
+              value={draft.birthdayDate && /^\d{4}-\d{2}-\d{2}$/.test(draft.birthdayDate) ? draft.birthdayDate : ""}
               onChange={(e) => onUpdate({ birthdayDate: e.target.value })}
-              placeholder="e.g. October 24, or 24th Oct 2026"
-              className="w-full bg-[var(--theme-bg-card)] text-[var(--theme-text-primary)] font-sans text-base px-5 py-3.5 rounded-xl border border-[var(--theme-border-subtle)] focus:border-[var(--theme-accent-primary)] focus:outline-none transition-colors duration-300 placeholder:text-[var(--theme-text-secondary)]/40"
+              className="w-full bg-[var(--theme-bg-card)] text-[var(--theme-text-primary)] font-sans text-base px-5 py-3.5 rounded-xl border border-[var(--theme-border-subtle)] focus:border-[var(--theme-accent-primary)] focus:outline-none transition-colors duration-300 [color-scheme:dark] cursor-pointer"
             />
-            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--theme-text-secondary)] opacity-50" />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => {
+                const el = document.getElementById("birthday-date") as HTMLInputElement | null;
+                if (el) {
+                  if (typeof el.showPicker === "function") {
+                    try {
+                      el.showPicker();
+                    } catch {
+                      el.focus();
+                    }
+                  } else {
+                    el.focus();
+                  }
+                }
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-[var(--theme-text-secondary)] opacity-50 hover:opacity-100 transition-opacity"
+              aria-label="Open date picker"
+            >
+              <Calendar className="w-5 h-5" />
+            </button>
           </div>
           <Caption>If provided, a subtle countdown and date reveal moment will be added.</Caption>
         </div>

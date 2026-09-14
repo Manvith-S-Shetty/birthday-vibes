@@ -37,6 +37,14 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
+  // Live Phone Preview real-time data sync (only when in preview mode)
+  useEffect(() => {
+    if (isPreview) {
+      setData(initialData);
+      setIsUnlocked(true);
+    }
+  }, [initialData, isPreview]);
+
   // Sync theme when data themeId changes
   useEffect(() => {
     if (data.themeId) {

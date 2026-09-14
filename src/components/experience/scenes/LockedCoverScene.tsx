@@ -63,7 +63,15 @@ export function LockedCoverScene({ data, onUnlock }: LockedCoverSceneProps) {
         <Eyebrow>A Private Digital Gift</Eyebrow>
         {data.birthdayDate && (
           <Caption className="block uppercase tracking-widest text-xs opacity-70">
-            {data.birthdayDate}
+            {/^\d{4}-\d{2}-\d{2}$/.test(data.birthdayDate)
+              ? (() => {
+                  const [y, m, d] = data.birthdayDate.split("-").map(Number);
+                  const dateObj = new Date(y, m - 1, d);
+                  return isNaN(dateObj.getTime())
+                    ? data.birthdayDate
+                    : dateObj.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+                })()
+              : data.birthdayDate}
           </Caption>
         )}
       </motion.div>

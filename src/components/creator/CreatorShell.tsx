@@ -40,26 +40,39 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
 
   // Load draft on mount / recovery
   useEffect(() => {
+    let isMounted = true;
     async function load() {
-      setIsLoading(true);
-      const loaded = await localDraftRepository.getDraft(draftId);
-      if (loaded) {
-        setDraft(loaded);
-        if (loaded.themeId) {
-          setTheme(loaded.themeId);
+      try {
+        setIsLoading(true);
+        const loaded = await localDraftRepository.getDraft(draftId);
+        if (isMounted && loaded) {
+          setDraft(loaded);
+          if (loaded.themeId) {
+            setTheme(loaded.themeId);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load Creator Studio draft:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
         }
       }
-      setIsLoading(false);
     }
     load();
+    return () => {
+      isMounted = false;
+    };
   }, [draftId, setTheme]);
 
   // Update draft helper + local autosave debounce
   const handleUpdateDraft = async (updates: Partial<BirthdayDraft>) => {
-    if (!draft) return;
-    const nextState = { ...draft, ...updates };
-    setDraft(nextState);
-    await localDraftRepository.saveDraft(nextState);
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const nextState = { ...prev, ...updates };
+      localDraftRepository.saveDraft(nextState);
+      return nextState;
+    });
   };
 
   const handleSetStep = (step: CreatorStep) => {

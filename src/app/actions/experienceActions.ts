@@ -1,6 +1,7 @@
 "use client";
 
 import { ExperienceData } from "@/types/experience";
+import { BirthdayDraft } from "@/types/draft";
 
 export interface LockedCoverMetadata {
   isLocked: boolean;
@@ -81,11 +82,12 @@ export async function getProtectedExperiencePayload(slug: string): Promise<Prote
   };
 }
 
-export async function publishExperience(draftId: string): Promise<PublishResult> {
+export async function publishExperience(draftOrId: BirthdayDraft | string): Promise<PublishResult> {
+  const payload = typeof draftOrId === "string" ? { draftId: draftOrId } : { draftId: draftOrId.id, draft: draftOrId };
   const res = await fetch("/api/create/publish", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draftId }),
+    body: JSON.stringify(payload),
   });
 
   const data = await res.json();

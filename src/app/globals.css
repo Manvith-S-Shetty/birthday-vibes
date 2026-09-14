@@ -68,7 +68,6 @@
 }
 
 .bg-film-grain {
-  pointer-events: none;
   background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 0);
   background-size: 24px 24px;
 }
