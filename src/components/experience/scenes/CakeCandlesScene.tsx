@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { ExperienceData } from "@/types/experience";
 import { Heading, Body, Eyebrow, Caption } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
-import { Flame, Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
+import { Flame, Sparkles, ArrowRight, ArrowLeft, Mic, MicOff, Wind, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
+import { useBlowDetector } from "@/hooks/useBlowDetector";
 
 interface CakeCandlesSceneProps {
   data: ExperienceData;
@@ -17,16 +18,24 @@ interface CakeCandlesSceneProps {
 export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps) {
   const [litCandles, setLitCandles] = useState<boolean[]>([true, true, true]);
   const [isAllExtinguished, setIsAllExtinguished] = useState<boolean>(false);
+  const [ariaAnnouncement, setAriaAnnouncement] = useState<string>("Candle scene loaded. You can blow into your microphone or tap the candles to extinguish them.");
 
-  const handleExtinguishCandle = (index: number) => {
-    if (!litCandles[index]) return;
+  // Ref to access current litCandles state inside blow detector callback without stale closures
+  const litCandlesRef = useRef(litCandles);
+  litCandlesRef.current = litCandles;
 
-    const next = [...litCandles];
+  const handleExtinguishCandle = useCallback((index: number) => {
+    const current = litCandlesRef.current;
+    if (!current[index]) return;
+
+    const next = [...current];
     next[index] = false;
     setLitCandles(next);
+    setAriaAnnouncement(`Candle ${index + 1} extinguished.`);
 
     // Check if all candles are now extinguished
     if (next.every((lit) => !lit)) {
+      setAriaAnnouncement("All candles extinguished! Your birthday wish is sealed!");
       setTimeout(() => {
         setIsAllExtinguished(true);
         // 1.2s beat pause before proceeding toward finale
@@ -35,12 +44,47 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
         }, 1200);
       }, 600);
     }
+  }, [onNext]);
+
+  // Callback triggered when a valid sustained blow is detected
+  const handleBlowDetected = useCallback(() => {
+    const current = litCandlesRef.current;
+    const firstLitIndex = current.findIndex((isLit) => isLit);
+    if (firstLitIndex !== -1) {
+      handleExtinguishCandle(firstLitIndex);
+    }
+  }, [handleExtinguishCandle]);
+
+  const {
+    permissionState,
+    isListening,
+    audioLevel,
+    isCalibrating,
+    startListening,
+    stopListening,
+  } = useBlowDetector({
+    onBlowDetected: handleBlowDetected,
+  });
+
+  const handleNextWithCleanup = () => {
+    stopListening();
+    onNext();
+  };
+
+  const handlePrevWithCleanup = () => {
+    stopListening();
+    onPrev();
   };
 
   const extinguishedCount = litCandles.filter((l) => !l).length;
 
   return (
     <div className="relative w-full min-h-screen flex flex-col justify-between items-center text-center px-4 py-12 md:py-20 bg-film-grain overflow-hidden">
+      {/* Accessibility Live Announcer */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {ariaAnnouncement}
+      </div>
+
       {/* Atmosphere Glow */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-40">
         <div className="w-[500px] h-[500px] rounded-full bg-[var(--theme-accent-glow)] blur-[120px]" />
@@ -52,12 +96,14 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
           Blow Out the Candles
         </Heading>
         <Body>
-          Tap each candle flame to extinguish it and make your birthday wish!
+          {isListening
+            ? "Take a deep breath and blow into your microphone!"
+            : "Blow into your microphone or tap each candle flame to extinguish it!"}
         </Body>
       </div>
 
       {/* Interactive Birthday Cake & Candles Container */}
-      <div className="relative z-10 my-auto py-8 space-y-8 max-w-md w-full">
+      <div className="relative z-10 my-auto py-6 space-y-6 max-w-md w-full">
         {/* Candle Flame Taps Container */}
         <div className="flex items-end justify-center gap-8 sm:gap-12 mb-4">
           {litCandles.map((isLit, idx) => (
@@ -82,7 +128,10 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
                     <motion.div
                       key="flame"
                       initial={{ scale: 0 }}
-                      animate={{ scale: [1, 1.15, 1], rotate: [-2, 2, -2] }}
+                      animate={{
+                        scale: [1, 1.15 + audioLevel * 0.3, 1],
+                        rotate: [-2 - audioLevel * 5, 2 + audioLevel * 5, -2],
+                      }}
                       exit={{ scale: 0, opacity: 0 }}
                       transition={{ repeat: Infinity, duration: 1.5 }}
                       className="text-amber-400 drop-shadow-[0_0_15px_rgba(245,158,11,0.8)]"
@@ -126,6 +175,83 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
           </div>
         </div>
 
+        {/* Microphone Interaction UX Card */}
+        {!isAllExtinguished && (
+          <div className="mt-4">
+            {permissionState === "idle" && (
+              <div className="p-4 rounded-2xl bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border-subtle)] backdrop-blur-md space-y-3 box-glow-sm">
+                <div className="flex items-center justify-center gap-2 text-xs font-serif tracking-wide text-[var(--theme-text-accent)] uppercase">
+                  <Wind className="w-4 h-4 text-[var(--theme-accent-primary)]" />
+                  <span>Microphone Candle Blowing</span>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Button
+                    variant="gold-glow"
+                    size="sm"
+                    onClick={startListening}
+                    className="w-full sm:w-auto"
+                  >
+                    <Mic className="w-4 h-4 mr-1.5" />
+                    <span>Enable Mic & Blow</span>
+                  </Button>
+                  <Caption className="text-xs">or tap any candle directly</Caption>
+                </div>
+              </div>
+            )}
+
+            {permissionState === "prompting" && (
+              <div className="p-4 rounded-2xl bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border-strong)] backdrop-blur-md flex items-center justify-center gap-2 text-sm text-[var(--theme-text-accent)] animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Allow microphone access in your browser...</span>
+              </div>
+            )}
+
+            {permissionState === "listening" && (
+              <div className="p-4 rounded-2xl bg-[var(--theme-bg-card)]/90 border border-[var(--theme-accent-primary)]/50 backdrop-blur-md space-y-3 shadow-lg">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2 text-xs text-[var(--theme-text-primary)]">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-accent-primary)] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--theme-accent-primary)]"></span>
+                    </span>
+                    <span className="font-sans font-medium text-xs">
+                      {isCalibrating ? "Calibrating room audio..." : "Listening for blow..."}
+                    </span>
+                  </div>
+
+                  {/* Real-time Audio Level Bar Indicator */}
+                  <div className="flex items-center gap-1 h-4 w-20 bg-black/40 rounded-full px-1.5 overflow-hidden border border-white/10">
+                    <div
+                      className="h-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-75"
+                      style={{ width: `${Math.min(100, Math.max(5, audioLevel * 100))}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                  <Caption className="text-[11px] text-[var(--theme-text-secondary)]">
+                    💨 Take a deep breath and blow into your mic!
+                  </Caption>
+                  <button
+                    type="button"
+                    onClick={stopListening}
+                    className="text-xs text-[var(--theme-text-secondary)] hover:text-white underline font-sans"
+                  >
+                    Tap only mode
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(permissionState === "denied" || permissionState === "unsupported" || permissionState === "error") && (
+              <div className="p-3 rounded-xl bg-black/40 border border-white/10 backdrop-blur-sm flex items-center justify-center gap-2 text-xs text-[var(--theme-text-secondary)]">
+                <MicOff className="w-3.5 h-3.5 opacity-60" />
+                <span>Microphone unavailable. Tap the candles to extinguish them!</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Wish Prompt / Extinguished Celebration Prompt */}
         <div className="h-12 flex items-center justify-center">
           {isAllExtinguished ? (
@@ -142,9 +268,8 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
           ) : (
             <Caption>
               {extinguishedCount === 0
-                ? "Tap candles to extinguish and make a wish."
-                : `${extinguishedCount} wish${extinguishedCount > 1 ? "es" : ""} made!`
-              }
+                ? "Tap candles or blow into your mic to make a wish."
+                : `${extinguishedCount} wish${extinguishedCount > 1 ? "es" : ""} made!`}
             </Caption>
           )}
         </div>
@@ -152,7 +277,7 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
 
       {/* Navigation Controls */}
       <div className="relative z-10 flex items-center justify-between w-full max-w-xl pt-4">
-        <Button variant="ghost" size="md" onClick={onPrev}>
+        <Button variant="ghost" size="md" onClick={handlePrevWithCleanup}>
           <ArrowLeft className="w-4 h-4 mr-1" />
           <span>Back</span>
         </Button>
@@ -160,7 +285,7 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
         <Button
           variant="gold-glow"
           size="lg"
-          onClick={onNext}
+          onClick={handleNextWithCleanup}
           className={cn(isAllExtinguished && "box-glow-lg scale-105")}
         >
           <span>See Celebration Finale</span>

@@ -1,0 +1,327 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+
+export type BlowPermissionState =
+  | "idle"
+  | "prompting"
+  | "listening"
+  | "denied"
+  | "unsupported"
+  | "error"
+  | "success";
+
+/**
+ * Tunable parameters for Blow Detection.
+ * Easy to calibrate for different room environments and mic sensitivities.
+ */
+export const BLOW_DETECTOR_CONFIG = {
+  /** Time in ms spent calibrating ambient noise background level */
+  CALIBRATION_DURATION_MS: 500,
+
+  /** FFT size for Web Audio AnalyserNode (512 -> 256 time domain / freq bins) */
+  SAMPLE_FFT_SIZE: 512,
+
+  /** Required sustained duration (in ms) of blow signal before triggering */
+  MIN_BLOW_DURATION_MS: 220,
+
+  /** Debounce cooldown (in ms) after a valid blow trigger */
+  BLOW_COOLDOWN_MS: 800,
+
+  /** Multiplier above ambient baseline RMS required to consider as blow candidate */
+  BLOW_RMS_MULTIPLIER: 3.0,
+
+  /** Absolute minimum RMS threshold to prevent triggering in total silence */
+  MIN_RMS_THRESHOLD: 0.035,
+
+  /** Upper limit ratio of mid/high speech frequencies to low wind noise (turbulence puff check) */
+  SPEECH_ENERGY_RATIO_MAX: 0.7,
+};
+
+interface UseBlowDetectorOptions {
+  onBlowDetected?: () => void;
+  autoStart?: boolean;
+}
+
+export interface BlowDetectorResult {
+  permissionState: BlowPermissionState;
+  isListening: boolean;
+  audioLevel: number; // Normalized 0.0 to 1.0 for UI visualizer
+  isCalibrating: boolean;
+  error: string | null;
+  startListening: () => Promise<boolean>;
+  stopListening: () => void;
+}
+
+export function useBlowDetector({
+  onBlowDetected,
+}: UseBlowDetectorOptions = {}): BlowDetectorResult {
+  const [permissionState, setPermissionState] = useState<BlowPermissionState>("idle");
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+
+  // Audio refs for cleanup and analysis
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const analyserNodeRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Calibration and detection state refs
+  const baselineRMSRef = useRef<number>(0.01);
+  const calibrationSumRef = useRef<number>(0);
+  const calibrationCountRef = useRef<number>(0);
+  const calibrationStartTimeRef = useRef<number>(0);
+
+  const blowStartTimeRef = useRef<number | null>(null);
+  const lastTriggerTimeRef = useRef<number>(0);
+  const onBlowDetectedRef = useRef(onBlowDetected);
+
+  useEffect(() => {
+    onBlowDetectedRef.current = onBlowDetected;
+  }, [onBlowDetected]);
+
+  // Teardown function to ensure total release of Web Audio & mic resources
+  const stopListening = useCallback(() => {
+    // 1. Cancel requestAnimationFrame
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    // 2. Stop all MediaStream tracks (releases microphone hardware)
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      mediaStreamRef.current = null;
+    }
+
+    // 3. Disconnect Web Audio nodes
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
+    }
+    if (analyserNodeRef.current) {
+      analyserNodeRef.current.disconnect();
+      analyserNodeRef.current = null;
+    }
+
+    // 4. Close AudioContext
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
+      }
+      audioContextRef.current = null;
+    }
+
+    setIsListening(false);
+    setIsCalibrating(false);
+    setAudioLevel(0);
+    blowStartTimeRef.current = null;
+  }, []);
+
+  // Primary start function (Must be invoked on user gesture)
+  const startListening = useCallback(async (): Promise<boolean> => {
+    setError(null);
+
+    // Check browser compatibility and secure context
+    if (
+      typeof window === "undefined" ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      setPermissionState("unsupported");
+      setError("Microphone access is not supported by your browser or requires HTTPS.");
+      return false;
+    }
+
+    setPermissionState("prompting");
+
+    try {
+      // 1. Request microphone stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false, // Keep noise suppression off to preserve natural air turbulence puff sound
+          autoGainControl: false,
+        },
+      });
+
+      mediaStreamRef.current = stream;
+
+      // 2. Initialize AudioContext (handle iOS webkit fallback)
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+
+      if (!AudioContextClass) {
+        setPermissionState("unsupported");
+        setError("AudioContext is not supported on this browser.");
+        return false;
+      }
+
+      const audioCtx = new AudioContextClass();
+      audioContextRef.current = audioCtx;
+
+      // Resume context if suspended (iOS requirement)
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      // 3. Setup Web Audio source & AnalyserNode
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = BLOW_DETECTOR_CONFIG.SAMPLE_FFT_SIZE;
+      analyser.smoothingTimeConstant = 0.2; // Fast response for sudden puff
+
+      // Connect source to analyser ONLY (do NOT connect to audioCtx.destination!)
+      source.connect(analyser);
+
+      sourceNodeRef.current = source;
+      analyserNodeRef.current = analyser;
+
+      // 4. Update permission & listening state
+      setPermissionState("listening");
+      setIsListening(true);
+      setIsCalibrating(true);
+
+      // Reset calibration counters
+      calibrationSumRef.current = 0;
+      calibrationCountRef.current = 0;
+      calibrationStartTimeRef.current = performance.now();
+      baselineRMSRef.current = 0.01;
+
+      // Pre-allocate analysis typed arrays for frame loop memory efficiency
+      const timeDomainData = new Uint8Array(analyser.fftSize);
+      const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+
+      // 5. Main analysis animation frame loop
+      const analyzeFrame = () => {
+        if (!analyserNodeRef.current) return;
+
+        const now = performance.now();
+
+        // Get time-domain data (samples range 0..255, centered at 128)
+        analyserNodeRef.current.getByteTimeDomainData(timeDomainData);
+        analyserNodeRef.current.getByteFrequencyData(frequencyData);
+
+        // Calculate Root Mean Square (RMS) amplitude
+        let sumSq = 0;
+        for (let i = 0; i < timeDomainData.length; i++) {
+          const val = (timeDomainData[i] - 128) / 128; // Normalize to -1.0 .. 1.0
+          sumSq += val * val;
+        }
+        const currentRMS = Math.sqrt(sumSq / timeDomainData.length);
+
+        // Update UI audio level indicator (smoothed 0..1 range)
+        const normalizedLevel = Math.min(1.0, currentRMS * 4);
+        setAudioLevel((prev) => prev * 0.4 + normalizedLevel * 0.6);
+
+        // A. Calibration Phase (First ~500ms)
+        if (now - calibrationStartTimeRef.current < BLOW_DETECTOR_CONFIG.CALIBRATION_DURATION_MS) {
+          calibrationSumRef.current += currentRMS;
+          calibrationCountRef.current += 1;
+          animFrameRef.current = requestAnimationFrame(analyzeFrame);
+          return;
+        }
+
+        // Complete calibration if newly finished
+        if (calibrationCountRef.current > 0) {
+          const computedBaseline = calibrationSumRef.current / calibrationCountRef.current;
+          // Set baseline with floor to avoid ultra-sensitive zero-baseline in silent rooms
+          baselineRMSRef.current = Math.max(0.008, computedBaseline);
+          calibrationCountRef.current = 0; // Lock calibration
+          setIsCalibrating(false);
+        }
+
+        // B. Blow Detection Analysis Phase
+        const baseline = baselineRMSRef.current;
+        const requiredRMSThreshold = Math.max(
+          BLOW_DETECTOR_CONFIG.MIN_RMS_THRESHOLD,
+          baseline * BLOW_DETECTOR_CONFIG.BLOW_RMS_MULTIPLIER
+        );
+
+        // Spectral Turbulance Check (Low frequency wind noise vs High frequency vocalization)
+        // Frequency bins: Low (0..8) vs Mid/High (16..48)
+        let lowEnergy = 0;
+        let midHighEnergy = 0;
+        const lowBinCount = Math.min(8, frequencyData.length);
+        const midHighBinCount = Math.min(48, frequencyData.length);
+
+        for (let i = 0; i < lowBinCount; i++) {
+          lowEnergy += frequencyData[i];
+        }
+        for (let i = 16; i < midHighBinCount; i++) {
+          midHighEnergy += frequencyData[i];
+        }
+
+        const speechEnergyRatio = midHighEnergy / (lowEnergy + 1);
+
+        const isBlowCandidate =
+          currentRMS >= requiredRMSThreshold &&
+          speechEnergyRatio <= BLOW_DETECTOR_CONFIG.SPEECH_ENERGY_RATIO_MAX;
+
+        const timeSinceLastTrigger = now - lastTriggerTimeRef.current;
+
+        if (isBlowCandidate && timeSinceLastTrigger > BLOW_DETECTOR_CONFIG.BLOW_COOLDOWN_MS) {
+          if (blowStartTimeRef.current === null) {
+            blowStartTimeRef.current = now;
+          } else {
+            const blowDuration = now - blowStartTimeRef.current;
+            if (blowDuration >= BLOW_DETECTOR_CONFIG.MIN_BLOW_DURATION_MS) {
+              // Valid sustained blow detected!
+              lastTriggerTimeRef.current = now;
+              blowStartTimeRef.current = null;
+              if (onBlowDetectedRef.current) {
+                onBlowDetectedRef.current();
+              }
+            }
+          }
+        } else {
+          blowStartTimeRef.current = null;
+        }
+
+        animFrameRef.current = requestAnimationFrame(analyzeFrame);
+      };
+
+      animFrameRef.current = requestAnimationFrame(analyzeFrame);
+      return true;
+    } catch (err: unknown) {
+      stopListening();
+      const errMessage = err instanceof Error ? err.message : String(err);
+
+      if (
+        errMessage.includes("Permission denied") ||
+        errMessage.includes("NotAllowedError") ||
+        errMessage.includes("PermissionDismissedError")
+      ) {
+        setPermissionState("denied");
+        setError("Microphone permission was denied.");
+      } else {
+        setPermissionState("error");
+        setError(`Microphone error: ${errMessage}`);
+      }
+      return false;
+    }
+  }, [stopListening]);
+
+  // Teardown cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, [stopListening]);
+
+  return {
+    permissionState,
+    isListening,
+    audioLevel,
+    isCalibrating,
+    error,
+    startListening,
+    stopListening,
+  };
+}
