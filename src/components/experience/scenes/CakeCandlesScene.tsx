@@ -7,12 +7,51 @@ import { Button } from "@/components/ui/Button";
 import { Flame, Sparkles, ArrowRight, ArrowLeft, Mic, MicOff, Wind, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
-import { useBlowDetector } from "@/hooks/useBlowDetector";
+import { useBlowDetector, BLOW_DETECTOR_CONFIG } from "@/hooks/useBlowDetector";
 
 interface CakeCandlesSceneProps {
   data: ExperienceData;
   onNext: () => void;
   onPrev: () => void;
+}
+
+/** true in development/test builds; false in production (dead-code-eliminated by Next.js).
+ *  Also true on Vercel Preview (NEXT_PUBLIC_VERCEL_ENV === "preview") for real-device HTTPS diagnostics. */
+const IS_DEV =
+  process.env.NODE_ENV !== "production" ||
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview";
+
+/**
+ * DEV-ONLY: Renders a single labeled row in the diagnostic panel.
+ * No-ops in production because it is only rendered inside IS_DEV guards.
+ */
+function DiagRow({
+  label,
+  value,
+  pass,
+  bold,
+}: {
+  label: string;
+  value: string;
+  pass?: boolean;
+  bold?: boolean;
+}) {
+  return (
+    <div className={`flex justify-between gap-3 ${bold ? "font-bold" : ""}`}>
+      <span className="text-white/40">{label}</span>
+      <span
+        className={
+          pass === true
+            ? "text-green-400"
+            : pass === false
+            ? "text-red-400"
+            : "text-white/80"
+        }
+      >
+        {value}
+      </span>
+    </div>
+  );
 }
 
 export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps) {
@@ -62,6 +101,7 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
     isCalibrating,
     startListening,
     stopListening,
+    diagnostics,
   } = useBlowDetector({
     onBlowDetected: handleBlowDetected,
   });
@@ -207,40 +247,115 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
             )}
 
             {permissionState === "listening" && (
-              <div className="p-4 rounded-2xl bg-[var(--theme-bg-card)]/90 border border-[var(--theme-accent-primary)]/50 backdrop-blur-md space-y-3 shadow-lg">
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2 text-xs text-[var(--theme-text-primary)]">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-accent-primary)] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--theme-accent-primary)]"></span>
-                    </span>
-                    <span className="font-sans font-medium text-xs">
-                      {isCalibrating ? "Calibrating room audio..." : "Listening for blow..."}
-                    </span>
+              <>
+                <div className="p-4 rounded-2xl bg-[var(--theme-bg-card)]/90 border border-[var(--theme-accent-primary)]/50 backdrop-blur-md space-y-3 shadow-lg">
+                  <div className="flex items-center justify-between px-2">
+                    <div className="flex items-center gap-2 text-xs text-[var(--theme-text-primary)]">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-accent-primary)] opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--theme-accent-primary)]"></span>
+                      </span>
+                      <span className="font-sans font-medium text-xs">
+                        {isCalibrating ? "Calibrating room audio..." : "Listening for blow..."}
+                      </span>
+                    </div>
+
+                    {/* Real-time Audio Level Bar Indicator */}
+                    <div className="flex items-center gap-1 h-4 w-20 bg-black/40 rounded-full px-1.5 overflow-hidden border border-white/10">
+                      <div
+                        className="h-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-75"
+                        style={{ width: `${Math.min(100, Math.max(5, audioLevel * 100))}%` }}
+                      />
+                    </div>
                   </div>
 
-                  {/* Real-time Audio Level Bar Indicator */}
-                  <div className="flex items-center gap-1 h-4 w-20 bg-black/40 rounded-full px-1.5 overflow-hidden border border-white/10">
-                    <div
-                      className="h-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-75"
-                      style={{ width: `${Math.min(100, Math.max(5, audioLevel * 100))}%` }}
+                  <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                    <Caption className="text-[11px] text-[var(--theme-text-secondary)]">
+                      💨 Take a deep breath and blow into your mic!
+                    </Caption>
+                    <button
+                      type="button"
+                      onClick={stopListening}
+                      className="text-xs text-[var(--theme-text-secondary)] hover:text-white underline font-sans"
+                    >
+                      Tap only mode
+                    </button>
+                  </div>
+                </div>
+
+                {/* DEV-ONLY Diagnostic Panel — not rendered in production (IS_DEV guard) */}
+                {IS_DEV && diagnostics !== null && (
+                  <div className="mt-2 p-3 rounded-xl bg-black/80 border border-yellow-500/40 font-mono text-[10px] leading-[1.6] select-text">
+                    <div className="text-yellow-400/70 uppercase tracking-widest text-[9px] mb-1.5 pb-1 border-b border-yellow-500/20">
+                      🔬 Blow Detector Diagnostics — dev only
+                    </div>
+
+                    {/* Gate A: RMS */}
+                    <DiagRow label="RMS" value={diagnostics.rms.toFixed(4)} />
+                    <DiagRow label="Baseline" value={diagnostics.baseline.toFixed(4)} />
+                    <DiagRow label="Threshold" value={diagnostics.threshold.toFixed(4)} />
+                    <DiagRow
+                      label="RMS Gate (A)"
+                      value={diagnostics.rmsGatePass ? "PASS ✓" : "FAIL ✗"}
+                      pass={diagnostics.rmsGatePass}
+                      bold
                     />
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-white/10">
-                  <Caption className="text-[11px] text-[var(--theme-text-secondary)]">
-                    💨 Take a deep breath and blow into your mic!
-                  </Caption>
-                  <button
-                    type="button"
-                    onClick={stopListening}
-                    className="text-xs text-[var(--theme-text-secondary)] hover:text-white underline font-sans"
-                  >
-                    Tap only mode
-                  </button>
-                </div>
-              </div>
+                    <div className="border-t border-white/10 my-1" />
+
+                    {/* Gate B: Spectral */}
+                    <DiagRow label="Low Energy" value={diagnostics.lowEnergy.toFixed(0)} />
+                    <DiagRow label="Mid/High Energy" value={diagnostics.midHighEnergy.toFixed(0)} />
+                    <DiagRow
+                      label="Spectral Ratio"
+                      value={diagnostics.speechEnergyRatio.toFixed(2)}
+                      pass={diagnostics.spectralGatePass}
+                    />
+                    <DiagRow
+                      label="Spectral Gate (B)"
+                      value={diagnostics.spectralGatePass ? "PASS ✓" : "FAIL ✗"}
+                      pass={diagnostics.spectralGatePass}
+                      bold
+                    />
+
+                    <div className="border-t border-white/10 my-1" />
+
+                    {/* Gate C: Duration */}
+                    <DiagRow
+                      label="Sustained"
+                      value={`${diagnostics.sustainedMs.toFixed(0)}ms / ${BLOW_DETECTOR_CONFIG.MIN_BLOW_DURATION_MS}ms`}
+                      pass={diagnostics.durationGatePass}
+                    />
+                    <DiagRow
+                      label="Duration Gate (C)"
+                      value={diagnostics.durationGatePass ? "PASS ✓" : "FAIL ✗"}
+                      pass={diagnostics.durationGatePass}
+                      bold
+                    />
+
+                    <div className="border-t border-white/10 my-1" />
+
+                    {/* Gate D: Cooldown + summary */}
+                    <DiagRow
+                      label="Cooldown (D)"
+                      value={diagnostics.cooldownReady ? "READY" : "WAIT"}
+                      pass={diagnostics.cooldownReady}
+                    />
+                    <DiagRow
+                      label="Blow Candidate"
+                      value={diagnostics.isBlowCandidate ? "YES" : "NO"}
+                      pass={diagnostics.isBlowCandidate}
+                      bold
+                    />
+
+                    {diagnostics.firing && (
+                      <div className="mt-1 text-center text-green-400 font-bold animate-pulse">
+                        ⚡ FIRED!
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {(permissionState === "denied" || permissionState === "unsupported" || permissionState === "error") && (

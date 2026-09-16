@@ -38,6 +38,28 @@ export const BLOW_DETECTOR_CONFIG = {
   SPEECH_ENERGY_RATIO_MAX: 0.7,
 };
 
+/**
+ * Diagnostic data exposed only in development builds (NODE_ENV !== "production").
+ * Returns null in production — never populated, never uploaded, never stored.
+ *
+ * Values updated at ~10 fps during active listening to limit render pressure.
+ */
+export interface BlowDiagnostics {
+  rms: number;               // Raw RMS amplitude of the current frame
+  baseline: number;          // Calibrated ambient RMS from the 500ms calibration window
+  threshold: number;         // Actual required threshold = max(MIN_RMS_THRESHOLD, baseline × MULTIPLIER)
+  rmsGatePass: boolean;      // Gate A: currentRMS >= threshold
+  lowEnergy: number;         // Sum of FFT bins 0..7 (~0–656 Hz at 48kHz / 512 FFT)
+  midHighEnergy: number;     // Sum of FFT bins 16..47 (~1.4–4.2 kHz at 48kHz / 512 FFT)
+  speechEnergyRatio: number; // midHighEnergy / (lowEnergy + 1)
+  spectralGatePass: boolean; // Gate B: speechEnergyRatio <= SPEECH_ENERGY_RATIO_MAX
+  isBlowCandidate: boolean;  // Gate A && Gate B — input to the sustained-duration accumulator
+  sustainedMs: number;       // How long the current blow candidate has been sustained
+  durationGatePass: boolean; // Gate C: sustainedMs >= MIN_BLOW_DURATION_MS
+  cooldownReady: boolean;    // Gate D: timeSinceLastTrigger > BLOW_COOLDOWN_MS
+  firing: boolean;           // true on the exact frame onBlowDetected() fires
+}
+
 interface UseBlowDetectorOptions {
   onBlowDetected?: () => void;
   autoStart?: boolean;
@@ -51,7 +73,15 @@ export interface BlowDetectorResult {
   error: string | null;
   startListening: () => Promise<boolean>;
   stopListening: () => void;
+  diagnostics: BlowDiagnostics | null; // null in production; populated at ~10fps in dev
 }
+
+/** true in development/test builds; false (and dead-code-eliminated) in production.
+ *  Also true on Vercel Preview deployments (NEXT_PUBLIC_VERCEL_ENV === "preview"),
+ *  so diagnostics populate for real-device HTTPS testing. */
+const IS_DEV =
+  process.env.NODE_ENV !== "production" ||
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview";
 
 export function useBlowDetector({
   onBlowDetected,
@@ -68,6 +98,10 @@ export function useBlowDetector({
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+
+  // DEV-ONLY: Diagnostic state — useState initialises to null; never populated in production
+  const [diagnostics, setDiagnostics] = useState<BlowDiagnostics | null>(null);
+  const lastDiagUpdateRef = useRef<number>(0); // throttle: last time setDiagnostics was called
 
   // Calibration and detection state refs
   const baselineRMSRef = useRef<number>(0.01);
@@ -117,6 +151,7 @@ export function useBlowDetector({
       audioContextRef.current = null;
     }
 
+    if (IS_DEV) setDiagnostics(null);
     setIsListening(false);
     setIsCalibrating(false);
     setAudioLevel(0);
@@ -266,6 +301,11 @@ export function useBlowDetector({
 
         const timeSinceLastTrigger = now - lastTriggerTimeRef.current;
 
+        // Capture sustained duration BEFORE the detection block modifies blowStartTimeRef
+        const sustainedMsNow =
+          blowStartTimeRef.current !== null ? now - blowStartTimeRef.current : 0;
+        let isAboutToFire = false;
+
         if (isBlowCandidate && timeSinceLastTrigger > BLOW_DETECTOR_CONFIG.BLOW_COOLDOWN_MS) {
           if (blowStartTimeRef.current === null) {
             blowStartTimeRef.current = now;
@@ -273,6 +313,7 @@ export function useBlowDetector({
             const blowDuration = now - blowStartTimeRef.current;
             if (blowDuration >= BLOW_DETECTOR_CONFIG.MIN_BLOW_DURATION_MS) {
               // Valid sustained blow detected!
+              isAboutToFire = true;
               lastTriggerTimeRef.current = now;
               blowStartTimeRef.current = null;
               if (onBlowDetectedRef.current) {
@@ -282,6 +323,32 @@ export function useBlowDetector({
           }
         } else {
           blowStartTimeRef.current = null;
+        }
+
+        // DEV-ONLY: Throttled diagnostic update (~10fps — readable on mobile, low render cost)
+        if (IS_DEV) {
+          const diagNow = performance.now();
+          if (diagNow - lastDiagUpdateRef.current >= 100) {
+            lastDiagUpdateRef.current = diagNow;
+            setDiagnostics({
+              rms: currentRMS,
+              baseline,
+              threshold: requiredRMSThreshold,
+              rmsGatePass: currentRMS >= requiredRMSThreshold,
+              lowEnergy,
+              midHighEnergy,
+              speechEnergyRatio,
+              spectralGatePass:
+                speechEnergyRatio <= BLOW_DETECTOR_CONFIG.SPEECH_ENERGY_RATIO_MAX,
+              isBlowCandidate,
+              sustainedMs: sustainedMsNow,
+              durationGatePass:
+                sustainedMsNow >= BLOW_DETECTOR_CONFIG.MIN_BLOW_DURATION_MS,
+              cooldownReady:
+                timeSinceLastTrigger > BLOW_DETECTOR_CONFIG.BLOW_COOLDOWN_MS,
+              firing: isAboutToFire,
+            });
+          }
         }
 
         animFrameRef.current = requestAnimationFrame(analyzeFrame);
@@ -323,5 +390,6 @@ export function useBlowDetector({
     error,
     startListening,
     stopListening,
+    diagnostics,
   };
 }
