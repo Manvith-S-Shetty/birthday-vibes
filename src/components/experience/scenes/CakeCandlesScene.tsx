@@ -287,12 +287,12 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
                 {IS_DEV && diagnostics !== null && (
                   <div className="mt-2 p-3 rounded-xl bg-black/80 border border-yellow-500/40 font-mono text-[10px] leading-[1.6] select-text">
                     <div className="text-yellow-400/70 uppercase tracking-widest text-[9px] mb-1.5 pb-1 border-b border-yellow-500/20">
-                      🔬 Blow Detector Diagnostics — dev only
+                      🔬 Blow Detector Diagnostics (v2 rev2) — dev only
                     </div>
 
-                    {/* Gate A: RMS */}
+                    {/* Gate A: Adaptive RMS */}
                     <DiagRow label="RMS" value={diagnostics.rms.toFixed(4)} />
-                    <DiagRow label="Baseline" value={diagnostics.baseline.toFixed(4)} />
+                    <DiagRow label="Baseline (EMA)" value={diagnostics.baseline.toFixed(4)} />
                     <DiagRow label="Threshold" value={diagnostics.threshold.toFixed(4)} />
                     <DiagRow
                       label="RMS Gate (A)"
@@ -303,18 +303,16 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
 
                     <div className="border-t border-white/10 my-1" />
 
-                    {/* Gate B: Spectral */}
-                    <DiagRow label="Low Energy" value={diagnostics.lowEnergy.toFixed(0)} />
-                    <DiagRow label="Mid/High Energy" value={diagnostics.midHighEnergy.toFixed(0)} />
+                    {/* Gate B: Onset guard */}
                     <DiagRow
-                      label="Spectral Ratio"
-                      value={diagnostics.speechEnergyRatio.toFixed(2)}
-                      pass={diagnostics.spectralGatePass}
+                      label={`Onset Frames (/${BLOW_DETECTOR_CONFIG.ONSET_GUARD_FRAMES})`}
+                      value={String(diagnostics.onsetFrames)}
+                      pass={diagnostics.onsetGuardPass}
                     />
                     <DiagRow
-                      label="Spectral Gate (B)"
-                      value={diagnostics.spectralGatePass ? "PASS ✓" : "FAIL ✗"}
-                      pass={diagnostics.spectralGatePass}
+                      label="Onset Gate (B)"
+                      value={diagnostics.onsetGuardPass ? "PASS ✓" : "FAIL ✗"}
+                      pass={diagnostics.onsetGuardPass}
                       bold
                     />
 
@@ -346,6 +344,17 @@ export function CakeCandlesScene({ data, onNext, onPrev }: CakeCandlesSceneProps
                       value={diagnostics.isBlowCandidate ? "YES" : "NO"}
                       pass={diagnostics.isBlowCandidate}
                       bold
+                    />
+
+                    <div className="border-t border-white/10 my-1" />
+
+                    {/* Spectral — diagnostic only, NOT a gate */}
+                    <div className="text-white/30 text-[9px] uppercase tracking-widest mb-0.5">Spectral (diagnostic — not gating)</div>
+                    <DiagRow label="Low Energy" value={diagnostics.lowEnergy.toFixed(0)} />
+                    <DiagRow label="Mid/High Energy" value={diagnostics.midHighEnergy.toFixed(0)} />
+                    <DiagRow
+                      label="Spectral Ratio"
+                      value={diagnostics.speechEnergyRatio.toFixed(2)}
                     />
 
                     {diagnostics.firing && (
