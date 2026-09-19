@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
 
 import { BirthdayDraft } from "@/types/draft";
+import { CURATED_MUSIC_TRACKS } from "@/lib/constants/music";
 
 export async function POST(request: Request) {
   let body: { draftId?: string; draft?: BirthdayDraft };
@@ -130,6 +131,9 @@ export async function POST(request: Request) {
 
       // Music Persistence
       if (draft.musicTitle) {
+        const matchedTrack = CURATED_MUSIC_TRACKS.find(
+          (t) => t.id === draft.musicTrackId
+        );
         await (supabaseAdminClient as any).from("music").delete().eq("experience_id", exp.id);
         await (supabaseAdminClient as any).from("music").insert({
           experience_id: exp.id,
@@ -137,6 +141,7 @@ export async function POST(request: Request) {
           source_url: draft.musicUrl || null,
           track_id: draft.musicTrackId || null,
           title: draft.musicTitle,
+          artist: matchedTrack?.artist || null,
           enabled: true,
         });
       }
