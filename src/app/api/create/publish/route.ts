@@ -8,6 +8,58 @@ import { supabaseAdminClient } from "@/lib/supabase/server";
 import { BirthdayDraft } from "@/types/draft";
 import { CURATED_MUSIC_TRACKS } from "@/lib/constants/music";
 
+function getValidatedCanonicalAppUrl(request: Request): { url?: string; error?: string } {
+  const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!rawAppUrl) {
+    if (isProduction) {
+      return {
+        error: "Server configuration error: NEXT_PUBLIC_APP_URL environment variable is missing in production.",
+      };
+    }
+    const fallback = request.headers.get("origin") || "http://localhost:3000";
+    try {
+      return { url: new URL(fallback).origin };
+    } catch {
+      return { url: "http://localhost:3000" };
+    }
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawAppUrl);
+  } catch {
+    return {
+      error: "Server configuration error: NEXT_PUBLIC_APP_URL is not a valid URL.",
+    };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  if (isProduction) {
+    const isLocalhost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".localhost") ||
+      hostname.includes("localhost");
+
+    if (parsed.protocol !== "https:") {
+      return {
+        error: "Server configuration error: NEXT_PUBLIC_APP_URL must use HTTPS in production.",
+      };
+    }
+
+    if (isLocalhost) {
+      return {
+        error: "Server configuration error: NEXT_PUBLIC_APP_URL cannot be a localhost address in production.",
+      };
+    }
+  }
+
+  return { url: parsed.origin };
+}
+
 export async function POST(request: Request) {
   let body: { draftId?: string; draft?: BirthdayDraft };
   try {
@@ -160,8 +212,15 @@ export async function POST(request: Request) {
     currentStep: "publish",
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get("origin") || "http://localhost:3000";
-  const shareUrl = `${appUrl}/g/${slug}`;
+  const { url: validatedAppUrl, error: appUrlError } = getValidatedCanonicalAppUrl(request);
+  if (appUrlError || !validatedAppUrl) {
+    return NextResponse.json(
+      { error: appUrlError || "Server configuration error: Invalid canonical URL." },
+      { status: 500 }
+    );
+  }
+
+  const shareUrl = new URL(`/g/${slug}`, validatedAppUrl).toString();
 
   return NextResponse.json({
     success: true,
