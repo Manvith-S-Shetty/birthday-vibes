@@ -6,7 +6,7 @@ import { Heading, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
 import { ExperienceRenderer } from "@/components/experience/ExperienceRenderer";
 import { ExperienceData } from "@/types/experience";
-import { ArrowLeft, Sparkles, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 interface StepPreviewProps {
   draft: BirthdayDraft;
@@ -47,14 +47,23 @@ export function StepPreview({ draft, onNext, onPrev }: StepPreviewProps) {
         <ExperienceRenderer data={experiencePayload} isPreview />
       </div>
 
-      <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <Button variant="ghost" size="md" onClick={onPrev}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
+      <div className="pt-6 pb-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-[var(--theme-border-subtle)]/60">
+        <Button
+          variant="ghost"
+          size="md"
+          onClick={onPrev}
+          className="min-h-[48px] px-5 sm:px-6 text-xs text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)] transition-colors duration-200"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
           <span>Back to editing</span>
         </Button>
-        <Button variant="gold-glow" size="lg" onClick={onNext}>
-          <Sparkles className="w-4 h-4 mr-1" />
-          <span>Looks beautiful → Publish</span>
+        <Button
+          variant="gold-glow"
+          onClick={onNext}
+          className="group min-h-[50px] px-8 sm:px-10 text-xs sm:text-sm font-semibold tracking-wider transition-all duration-200 ease-out shadow-[0_0_14px_rgba(212,175,55,0.25)] hover:shadow-[0_0_28px_rgba(212,175,55,0.5)] focus-visible:ring-2 focus-visible:ring-[var(--theme-accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg-primary)] focus-visible:outline-none"
+        >
+          <span>Publish Birthday Experience</span>
+          <ArrowRight className="w-4 h-4 ml-2.5 transition-transform duration-200 group-hover:translate-x-1" />
         </Button>
       </div>
     </div>
