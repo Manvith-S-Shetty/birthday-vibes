@@ -20,6 +20,7 @@ import { StepPublishPlaceholder } from "./steps/StepPublishPlaceholder";
 
 import { Sparkles, Eye, X, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { AudioProvider } from "@/components/audio/AudioProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const STEPS: { id: CreatorStep; label: string; number: string }[] = [
@@ -128,168 +129,170 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--theme-bg-primary)] text-[var(--theme-text-primary)] transition-colors duration-500">
-      {/* Top Header / Progress Nav */}
-      <header className="border-b border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)]/90 backdrop-blur-md py-3 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <BrandLogo variant="lockup" size="sm" />
-        </div>
-
-        {/* Step Indicator Pills */}
-        <nav className="hidden lg:flex items-center gap-1">
-          {STEPS.map((s, idx) => {
-            const isActive = draft.currentStep === s.id;
-            const isDone = idx < currentStepIndex;
-
-            return (
-              <button
-                key={s.id}
-                onClick={() => handleSetStep(s.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-sans transition-all duration-300 min-h-[44px]",
-                  isActive
-                    ? "bg-[var(--theme-accent-primary)] text-[var(--token-ink)] font-semibold shadow-md"
-                    : isDone
-                    ? "text-[var(--theme-text-primary)] hover:bg-[var(--theme-border-subtle)]"
-                    : "text-[var(--theme-text-secondary)] opacity-60 hover:opacity-100"
-                )}
-              >
-                <span>{s.number}.</span>
-                <span>{s.label}</span>
-                {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--theme-accent-primary)]" />}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Mobile Preview Trigger Button */}
-        <div className="flex items-center gap-2 lg:hidden">
-          <Button
-            variant="champagne-outline"
-            size="sm"
-            onClick={() => setIsMobilePreviewOpen(true)}
-            className="min-h-[44px]"
-          >
-            <Eye className="w-4 h-4 mr-1.5" />
-            <span>Live Preview</span>
-          </Button>
-        </div>
-      </header>
-
-      {/* Main Studio Body Grid (Desktop: Form + Phone Preview) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 max-w-7xl w-full mx-auto p-4 sm:p-8 gap-8 items-start">
-        {/* Left / Main Creation Stage Area (Cols 7 on Desktop) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Step Progress Bar for Mobile/Tablet */}
-          <div className="lg:hidden flex items-center justify-between text-xs text-[var(--theme-text-secondary)] border-b border-white/5 pb-3">
-            <span>
-              Stage {currentStepIndex + 1} of {STEPS.length}:{" "}
-              <strong className="text-[var(--theme-text-primary)]">
-                {STEPS[currentStepIndex].label}
-              </strong>
-            </span>
-            <span>{Math.round(((currentStepIndex + 1) / STEPS.length) * 100)}%</span>
+    <AudioProvider>
+      <div className="min-h-screen flex flex-col bg-[var(--theme-bg-primary)] text-[var(--theme-text-primary)] transition-colors duration-500">
+        {/* Top Header / Progress Nav */}
+        <header className="border-b border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)]/90 backdrop-blur-md py-3 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <BrandLogo variant="lockup" size="sm" />
           </div>
 
-          <div className="min-h-[480px]">
-            {draft.currentStep === "recipient" && (
-              <StepRecipient draft={draft} onUpdate={handleUpdateDraft} onNext={handleNextStep} />
-            )}
-            {draft.currentStep === "mood" && (
-              <StepMood
-                draft={draft}
-                onUpdate={handleUpdateDraft}
-                onNext={handleNextStep}
-                onPrev={handlePrevStep}
-              />
-            )}
-            {draft.currentStep === "memories" && (
-              <StepMemories
-                draft={draft}
-                onUpdate={handleUpdateDraft}
-                onNext={handleNextStep}
-                onPrev={handlePrevStep}
-              />
-            )}
-            {draft.currentStep === "message" && (
-              <StepMessage
-                draft={draft}
-                onUpdate={handleUpdateDraft}
-                onNext={handleNextStep}
-                onPrev={handlePrevStep}
-              />
-            )}
-            {draft.currentStep === "music" && (
-              <StepMusic
-                draft={draft}
-                onUpdate={handleUpdateDraft}
-                onNext={handleNextStep}
-                onPrev={handlePrevStep}
-              />
-            )}
-            {draft.currentStep === "security" && (
-              <StepSecurity
-                draft={draft}
-                onUpdate={handleUpdateDraft}
-                onNext={handleNextStep}
-                onPrev={handlePrevStep}
-              />
-            )}
-            {draft.currentStep === "preview" && (
-              <StepPreview draft={draft} onNext={handleNextStep} onPrev={handlePrevStep} />
-            )}
-            {draft.currentStep === "publish" && (
-              <StepPublishPlaceholder
-                draft={draft}
-                onPrev={handlePrevStep}
-                onStartNew={handleStartNewDraft}
-              />
-            )}
-          </div>
-        </div>
+          {/* Step Indicator Pills */}
+          <nav className="hidden lg:flex items-center gap-1">
+            {STEPS.map((s, idx) => {
+              const isActive = draft.currentStep === s.id;
+              const isDone = idx < currentStepIndex;
 
-        {/* Right Desktop Phone Preview Frame (Cols 5 on Desktop) */}
-        <div className="hidden lg:block lg:col-span-5 sticky top-24">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs text-[var(--theme-text-secondary)]">
-              <span className="uppercase tracking-widest font-sans font-medium text-[var(--theme-text-accent)]">
-                Live Phone Preview
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => handleSetStep(s.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-sans transition-all duration-300 min-h-[44px]",
+                    isActive
+                      ? "bg-[var(--theme-accent-primary)] text-[var(--token-ink)] font-semibold shadow-md"
+                      : isDone
+                      ? "text-[var(--theme-text-primary)] hover:bg-[var(--theme-border-subtle)]"
+                      : "text-[var(--theme-text-secondary)] opacity-60 hover:opacity-100"
+                  )}
+                >
+                  <span>{s.number}.</span>
+                  <span>{s.label}</span>
+                  {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--theme-accent-primary)]" />}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Mobile Preview Trigger Button */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <Button
+              variant="champagne-outline"
+              size="sm"
+              onClick={() => setIsMobilePreviewOpen(true)}
+              className="min-h-[44px]"
+            >
+              <Eye className="w-4 h-4 mr-1.5" />
+              <span>Live Preview</span>
+            </Button>
+          </div>
+        </header>
+
+        {/* Main Studio Body Grid (Desktop: Form + Phone Preview) */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 max-w-7xl w-full mx-auto p-4 sm:p-8 gap-8 items-start">
+          {/* Left / Main Creation Stage Area (Cols 7 on Desktop) */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Step Progress Bar for Mobile/Tablet */}
+            <div className="lg:hidden flex items-center justify-between text-xs text-[var(--theme-text-secondary)] border-b border-white/5 pb-3">
+              <span>
+                Stage {currentStepIndex + 1} of {STEPS.length}:{" "}
+                <strong className="text-[var(--theme-text-primary)]">
+                  {STEPS[currentStepIndex].label}
+                </strong>
               </span>
-              <span className="text-[10px] opacity-70">Real-time Draft Sync</span>
+              <span>{Math.round(((currentStepIndex + 1) / STEPS.length) * 100)}%</span>
             </div>
 
-            {/* Realistic Smartphone Chassis Frame */}
-            <div className="relative mx-auto w-full max-w-[360px] h-[640px] rounded-[40px] border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
-              {/* Notch */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[var(--theme-border-strong)] rounded-b-xl z-20" />
+            <div className="min-h-[480px]">
+              {draft.currentStep === "recipient" && (
+                <StepRecipient draft={draft} onUpdate={handleUpdateDraft} onNext={handleNextStep} />
+              )}
+              {draft.currentStep === "mood" && (
+                <StepMood
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "memories" && (
+                <StepMemories
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "message" && (
+                <StepMessage
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "music" && (
+                <StepMusic
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "security" && (
+                <StepSecurity
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "preview" && (
+                <StepPreview draft={draft} onNext={handleNextStep} onPrev={handlePrevStep} />
+              )}
+              {draft.currentStep === "publish" && (
+                <StepPublishPlaceholder
+                  draft={draft}
+                  onPrev={handlePrevStep}
+                  onStartNew={handleStartNewDraft}
+                />
+              )}
+            </div>
+          </div>
 
-              <div className="w-full h-full overflow-y-auto">
-                <ExperienceRenderer data={livePreviewData} isPreview />
+          {/* Right Desktop Phone Preview Frame (Cols 5 on Desktop) */}
+          <div className="hidden lg:block lg:col-span-5 sticky top-24">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-[var(--theme-text-secondary)]">
+                <span className="uppercase tracking-widest font-sans font-medium text-[var(--theme-text-accent)]">
+                  Live Phone Preview
+                </span>
+                <span className="text-[10px] opacity-70">Real-time Draft Sync</span>
+              </div>
+
+              {/* Realistic Smartphone Chassis Frame */}
+              <div className="relative mx-auto w-full max-w-[360px] h-[640px] rounded-[40px] border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
+                {/* Notch */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[var(--theme-border-strong)] rounded-b-xl z-20" />
+
+                <div className="w-full h-full overflow-y-auto">
+                  <ExperienceRenderer data={livePreviewData} isPreview />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Fullscreen Preview Sheet Modal */}
-      {isMobilePreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col animate-fade-in">
-          <div className="p-4 flex items-center justify-between border-b border-white/10 bg-black/60">
-            <span className="font-serif text-sm text-[var(--theme-text-primary)]">
-              Live Recipient Preview
-            </span>
-            <button
-              onClick={() => setIsMobilePreviewOpen(false)}
-              className="p-2 rounded-full hover:bg-white/10 text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        {/* Mobile Fullscreen Preview Sheet Modal */}
+        {isMobilePreviewOpen && (
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col animate-fade-in">
+            <div className="p-4 flex items-center justify-between border-b border-white/10 bg-black/60">
+              <span className="font-serif text-sm text-[var(--theme-text-primary)]">
+                Live Recipient Preview
+              </span>
+              <button
+                onClick={() => setIsMobilePreviewOpen(false)}
+                className="p-2 rounded-full hover:bg-white/10 text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <ExperienceRenderer data={livePreviewData} isPreview />
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <ExperienceRenderer data={livePreviewData} isPreview />
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </AudioProvider>
   );
 }
