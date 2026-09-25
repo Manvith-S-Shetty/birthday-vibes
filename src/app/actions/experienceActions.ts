@@ -1,5 +1,5 @@
 "use client";
-
+import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
 import { ExperienceData } from "@/types/experience";
 import { BirthdayDraft } from "@/types/draft";
 
@@ -82,15 +82,57 @@ export async function getProtectedExperiencePayload(slug: string): Promise<Prote
   };
 }
 
-export async function publishExperience(draftOrId: BirthdayDraft | string): Promise<PublishResult> {
-  const payload = typeof draftOrId === "string" ? { draftId: draftOrId } : { draftId: draftOrId.id, draft: draftOrId };
+export async function publishExperience(
+  draftOrId: BirthdayDraft | string,
+  voiceBlob?: Blob
+): Promise<PublishResult> {
+  const draft =
+    typeof draftOrId === "string"
+      ? undefined
+      : draftOrId;
+
+  const draftId =
+    typeof draftOrId === "string"
+      ? draftOrId
+      : draftOrId.id;
+
+  const formData = new FormData();
+
+  if (draft) {
+    formData.append("draft", JSON.stringify(draft));
+  } else {
+    formData.append("draftId", draftId);
+  }
+
+  // Prefer the explicitly provided Blob.
+  // Otherwise retrieve the recording from the in-memory cache.
+  const cachedRecording = VoiceRecordingCache.get(draftId);
+  const recording = voiceBlob || cachedRecording?.blob;
+
+  if (recording) {
+    formData.append(
+      "voiceAudio",
+      recording,
+      `voice-message.${getAudioExtension(recording.type)}`
+    );
+
+    formData.append(
+      "voiceMetadata",
+      JSON.stringify({
+        mimeType: recording.type,
+        durationMs: draft?.voiceMessage?.durationMs ?? 0,
+        transcript: draft?.voiceMessage?.transcript || undefined,
+      })
+    );
+  }
+
   const res = await fetch("/api/create/publish", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: formData,
   });
 
   const data = await res.json();
+
   if (!res.ok) {
     return {
       success: false,
@@ -103,4 +145,14 @@ export async function publishExperience(draftOrId: BirthdayDraft | string): Prom
     slug: data.slug,
     shareUrl: data.shareUrl,
   };
+}
+
+function getAudioExtension(mimeType: string): string {
+  if (mimeType.includes("webm")) return "webm";
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("aac")) return "aac";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("wav")) return "wav";
+
+  return "audio";
 }

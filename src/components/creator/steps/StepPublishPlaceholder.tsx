@@ -1,5 +1,5 @@
 "use client";
-
+import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
 import React, { useState, useEffect } from "react";
 import { BirthdayDraft } from "@/types/draft";
 import { Display, Body, Eyebrow } from "@/components/ui/Typography";
@@ -20,23 +20,36 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
   const [publishResult, setPublishResult] = useState<{ slug?: string; shareUrl?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const publishedDraftIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
+    let isSubscribed = true;
+
+    if (publishedDraftIdRef.current === draft.id) return;
+    publishedDraftIdRef.current = draft.id;
+
     async function handlePublish() {
-      if (publishResult) return;
       setIsPublishing(true);
       setError(null);
 
-      const res = await publishExperience(draft);
-      if (res.success && res.slug && res.shareUrl) {
-        setPublishResult({ slug: res.slug, shareUrl: res.shareUrl });
-      } else {
-        setError(res.error || "Failed to publish experience. Please try again.");
+      const voiceRecording = VoiceRecordingCache.get(draft.id);
+      const res = await publishExperience(draft, voiceRecording?.blob);
+      if (isSubscribed) {
+        if (res.success && res.slug && res.shareUrl) {
+          setPublishResult({ slug: res.slug, shareUrl: res.shareUrl });
+        } else {
+          setError(res.error || "Failed to publish experience. Please try again.");
+        }
+        setIsPublishing(false);
       }
-      setIsPublishing(false);
     }
 
     handlePublish();
-  }, [draft.id, publishResult]);
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [draft]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
   const slug = publishResult?.slug || draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "gift";
