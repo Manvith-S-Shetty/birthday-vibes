@@ -7,9 +7,18 @@ export type CreatorStep =
   | "memories"
   | "message"
   | "music"
+  | "voice"
   | "security"
   | "preview"
   | "publish";
+
+export interface VoiceMessageDraftState {
+  status: "none" | "recorded";
+  durationMs: number;
+  mimeType: string;
+  transcript?: string;
+  updatedAt?: string;
+}
 
 export interface BirthdayDraft {
   id: string;
@@ -21,6 +30,7 @@ export interface BirthdayDraft {
   musicTrackId?: string;
   musicTitle?: string;
   musicUrl?: string;
+  voiceMessage?: VoiceMessageDraftState;
   pin?: string;
   isPinProtected: boolean;
   currentStep: CreatorStep;

@@ -1,6 +1,8 @@
 import { BirthdayDraft, DraftRepository, CreatorStep } from "@/types/draft";
 import { defaultThemeId } from "@/lib/themes/definitions";
 
+import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
+
 const STORAGE_KEY_PREFIX = "wishlight_draft_";
 const LATEST_DRAFT_KEY = "wishlight_latest_draft_id";
 
@@ -77,6 +79,7 @@ export class LocalDraftRepository implements DraftRepository {
         if (localStorage.getItem(LATEST_DRAFT_KEY) === id) {
           localStorage.removeItem(LATEST_DRAFT_KEY);
         }
+        VoiceRecordingCache.clear(id);
       } catch (error) {
         console.warn("Failed to delete draft from localStorage:", error);
       }

@@ -60,12 +60,60 @@ function getValidatedCanonicalAppUrl(request: Request): { url?: string; error?: 
   return { url: parsed.origin };
 }
 
+function getAudioExtensionFromMime(mimeType: string): string {
+  const mime = mimeType.toLowerCase();
+  if (mime.includes("webm")) return "webm";
+  if (mime.includes("mp4") || mime.includes("m4a")) return "m4a";
+  if (mime.includes("aac")) return "aac";
+  if (mime.includes("ogg")) return "ogg";
+  if (mime.includes("wav")) return "wav";
+  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
+  return "audio";
+}
+
 export async function POST(request: Request) {
-  let body: { draftId?: string; draft?: BirthdayDraft };
+  let body: { draftId?: string; draft?: BirthdayDraft } = {};
+  let voiceAudio: File | null = null;
+  let voiceMetadata: {
+    mimeType?: string;
+    durationMs?: number;
+    transcript?: string;
+  } | null = null;
+
   try {
-    body = await request.json();
+    const contentType = request.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+
+      const draftIdValue = formData.get("draftId");
+      const draftValue = formData.get("draft");
+      const voiceAudioValue = formData.get("voiceAudio");
+      const voiceMetadataValue = formData.get("voiceMetadata");
+
+      if (typeof draftIdValue === "string") {
+        body.draftId = draftIdValue;
+      }
+
+      if (typeof draftValue === "string") {
+        body.draft = JSON.parse(draftValue);
+      }
+
+      if (voiceAudioValue && typeof (voiceAudioValue as any).arrayBuffer === "function") {
+        voiceAudio = voiceAudioValue as File;
+      }
+
+      if (typeof voiceMetadataValue === "string") {
+        voiceMetadata = JSON.parse(voiceMetadataValue);
+      }
+    } else {
+      body = await request.json();
+    }
   } catch {
-    body = {};
+    return NextResponse.json(
+      { error: "Invalid publish request." },
+      { status: 400 }
+    );
   }
 
   // 1. Retrieve creator secret from HttpOnly session cookie
@@ -89,6 +137,60 @@ export async function POST(request: Request) {
       { error: "A PIN is required before publishing." },
       { status: 400 }
     );
+  }
+
+  // 3. Voice Message Metadata & Binary Validation
+  const hasVoiceRecording =
+    !!voiceAudio ||
+    (draft.voiceMessage && draft.voiceMessage.status === "recorded");
+
+  const voiceMimeType =
+    voiceAudio?.type ||
+    voiceMetadata?.mimeType ||
+    draft.voiceMessage?.mimeType ||
+    "";
+  const voiceDurationMs =
+    voiceMetadata?.durationMs ??
+    draft.voiceMessage?.durationMs ??
+    0;
+  const voiceTranscript =
+    voiceMetadata?.transcript ||
+    draft.voiceMessage?.transcript ||
+    null;
+  const voiceFileSize = voiceAudio?.size || 0;
+
+  if (hasVoiceRecording || voiceAudio) {
+    const isAudioMime =
+      voiceMimeType &&
+      (voiceMimeType.toLowerCase().startsWith("audio/") ||
+        voiceMimeType.toLowerCase().includes("webm") ||
+        voiceMimeType.toLowerCase().includes("ogg") ||
+        voiceMimeType.toLowerCase().includes("wav") ||
+        voiceMimeType.toLowerCase().includes("mp4") ||
+        voiceMimeType.toLowerCase().includes("aac") ||
+        voiceMimeType.toLowerCase().includes("mpeg") ||
+        voiceMimeType.toLowerCase().includes("m4a"));
+
+    if (!isAudioMime) {
+      return NextResponse.json(
+        { error: "Invalid voice message MIME type." },
+        { status: 400 }
+      );
+    }
+
+    if (voiceFileSize <= 0 || voiceFileSize > 10485760) {
+      return NextResponse.json(
+        { error: "Voice message file size must be between 1 byte and 10MB." },
+        { status: 400 }
+      );
+    }
+
+    if (voiceDurationMs <= 0 || voiceDurationMs > 180000) {
+      return NextResponse.json(
+        { error: "Voice message duration must be between 1ms and 180000ms." },
+        { status: 400 }
+      );
+    }
   }
 
   const slug = generateHighEntropySlug(draft.recipientName);
@@ -196,6 +298,79 @@ export async function POST(request: Request) {
           artist: matchedTrack?.artist || null,
           enabled: true,
         });
+      }
+
+      // Voice Message Persistence & Storage Upload
+      if (hasVoiceRecording && voiceAudio) {
+        try {
+          const { data: bucketData, error: bucketError } = await supabaseAdminClient.storage.getBucket("voice-messages");
+          if (bucketError || !bucketData) {
+            await supabaseAdminClient.storage.createBucket("voice-messages", { public: false });
+          }
+        } catch {
+          // Ignore if bucket already exists or management is restricted
+        }
+
+        const ext = getAudioExtensionFromMime(voiceMimeType);
+        const storagePath = `${exp.id}/voice-message.${ext}`;
+        const buffer = Buffer.from(await voiceAudio.arrayBuffer());
+
+        const { data: existingVoice } = await (supabaseAdminClient as any)
+          .from("voice_messages")
+          .select("storage_path")
+          .eq("experience_id", exp.id)
+          .maybeSingle();
+
+        if (existingVoice && existingVoice.storage_path !== storagePath) {
+          await supabaseAdminClient.storage
+            .from("voice-messages")
+            .remove([existingVoice.storage_path]);
+        }
+
+        const { error: uploadError } = await supabaseAdminClient.storage
+          .from("voice-messages")
+          .upload(storagePath, buffer, {
+            contentType: voiceMimeType,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Supabase Storage voice message upload failed:", storagePath, uploadError);
+          throw uploadError;
+        }
+
+        const voiceRow = {
+          experience_id: exp.id,
+          storage_path: storagePath,
+          mime_type: voiceMimeType,
+          duration_ms: Math.round(voiceDurationMs),
+          file_size_bytes: voiceFileSize,
+          transcript: voiceTranscript,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error: voiceDbError } = await (supabaseAdminClient as any)
+          .from("voice_messages")
+          .upsert(voiceRow, { onConflict: "experience_id" });
+
+        if (voiceDbError) throw voiceDbError;
+      } else if (draft.voiceMessage?.status === "none" || (!hasVoiceRecording && !voiceAudio)) {
+        const { data: existingVoice } = await (supabaseAdminClient as any)
+          .from("voice_messages")
+          .select("storage_path")
+          .eq("experience_id", exp.id)
+          .maybeSingle();
+
+        if (existingVoice) {
+          await supabaseAdminClient.storage
+            .from("voice-messages")
+            .remove([existingVoice.storage_path]);
+
+          await (supabaseAdminClient as any)
+            .from("voice_messages")
+            .delete()
+            .eq("experience_id", exp.id);
+        }
       }
     } catch (e) {
       console.error("Supabase publish error:", e);

@@ -15,6 +15,7 @@ import { StepMemories } from "./steps/StepMemories";
 import { StepMessage } from "./steps/StepMessage";
 import { StepMusic } from "./steps/StepMusic";
 import { StepSecurity } from "./steps/StepSecurity";
+import { StepVoice } from "./steps/StepVoice";
 import { StepPreview } from "./steps/StepPreview";
 import { StepPublishPlaceholder } from "./steps/StepPublishPlaceholder";
 
@@ -29,9 +30,10 @@ const STEPS: { id: CreatorStep; label: string; number: string }[] = [
   { id: "memories", label: "Memories", number: "03" },
   { id: "message", label: "Message", number: "04" },
   { id: "music", label: "Music", number: "05" },
-  { id: "security", label: "Security", number: "06" },
-  { id: "preview", label: "Preview", number: "07" },
-  { id: "publish", label: "Publish", number: "08" },
+  { id: "voice", label: "Voice Note", number: "06" },
+  { id: "security", label: "Security", number: "07" },
+  { id: "preview", label: "Preview", number: "08" },
+  { id: "publish", label: "Publish", number: "09" },
 ];
 
 export function CreatorShell({ draftId }: { draftId?: string }) {
@@ -227,6 +229,15 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
                   onUpdate={handleUpdateDraft}
                   onNext={handleNextStep}
                   onPrev={handlePrevStep}
+                />
+              )}
+              {draft.currentStep === "voice" && (
+                <StepVoice
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                  skipCountdownForTesting={process.env.NODE_ENV === "test"}
                 />
               )}
               {draft.currentStep === "security" && (

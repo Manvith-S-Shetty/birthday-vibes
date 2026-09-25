@@ -46,7 +46,7 @@ export function StepSecurity({ draft, onUpdate, onNext, onPrev }: StepSecurityPr
   return (
     <form onSubmit={handleSubmit} className="space-y-8 animate-fade-in max-w-xl mx-auto">
       <div className="space-y-3 text-center sm:text-left">
-        <Eyebrow>Step 06 — Privacy & Security</Eyebrow>
+        <Eyebrow>Step 07 — Privacy & Security</Eyebrow>
         <Heading className="text-3xl sm:text-4xl">
           Lock your birthday surprise
         </Heading>
