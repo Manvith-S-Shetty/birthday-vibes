@@ -8,6 +8,8 @@ import { ExperienceRenderer } from "@/components/experience/ExperienceRenderer";
 import { ExperienceData } from "@/types/experience";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
+import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
+
 interface StepPreviewProps {
   draft: BirthdayDraft;
   onNext: () => void;
@@ -15,6 +17,17 @@ interface StepPreviewProps {
 }
 
 export function StepPreview({ draft, onNext, onPrev }: StepPreviewProps) {
+  const cachedVoice = VoiceRecordingCache.get(draft.id);
+  const voiceMessage = cachedVoice
+    ? {
+        url: cachedVoice.objectUrl,
+        audioUrl: cachedVoice.objectUrl,
+        mimeType: cachedVoice.blob.type || draft.voiceMessage?.mimeType || "audio/webm",
+        durationMs: draft.voiceMessage?.durationMs || 0,
+        transcript: draft.voiceMessage?.transcript || undefined,
+      }
+    : undefined;
+
   const experiencePayload: ExperienceData = {
     id: draft.id,
     slug: draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "birthday-preview",
@@ -25,6 +38,7 @@ export function StepPreview({ draft, onNext, onPrev }: StepPreviewProps) {
     photos: draft.photos,
     musicTitle: draft.musicTitle,
     musicUrl: draft.musicUrl,
+    voiceMessage,
     isPinProtected: draft.isPinProtected,
     pin: draft.pin,
     createdAt: draft.createdAt,

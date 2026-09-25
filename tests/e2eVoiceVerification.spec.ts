@@ -5,6 +5,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+  throw new Error("Required Supabase environment variables are missing.");
+}
+
 const adminClient = createClient(supabaseUrl, serviceRoleKey);
 const anonClient = createClient(supabaseUrl, anonKey);
 

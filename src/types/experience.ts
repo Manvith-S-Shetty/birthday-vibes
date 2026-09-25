@@ -9,6 +9,14 @@ export interface MediaItem {
   sortOrder: number;
 }
 
+export interface VoiceMessageData {
+  url?: string;
+  audioUrl: string;
+  mimeType: string;
+  durationMs: number;
+  transcript?: string;
+}
+
 export interface ExperienceData {
   id: string;
   slug: string;
@@ -19,6 +27,7 @@ export interface ExperienceData {
   photos: MediaItem[];
   musicUrl?: string;
   musicTitle?: string;
+  voiceMessage?: VoiceMessageData;
   isPinProtected: boolean;
   pin?: string;
   createdAt: string;
