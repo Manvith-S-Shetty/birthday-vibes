@@ -1,4 +1,4 @@
-import { ExperienceData, MediaItem } from "@/types/experience";
+import { ExperienceData, MediaItem, VoiceMessageData } from "@/types/experience";
 import { SeedExperienceRepository, seedExperienceRepository } from "./SeedExperienceRepository";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
@@ -117,6 +117,31 @@ export class SupabaseExperienceRepository {
             .eq("experience_id", exp.id)
             .single();
 
+          // Fetch voice message belonging strictly to exp.id
+          const { data: voiceRow } = await (supabaseAdminClient as any)
+            .from("voice_messages")
+            .select("*")
+            .eq("experience_id", exp.id)
+            .maybeSingle();
+
+          let voiceMessage: VoiceMessageData | undefined = undefined;
+
+          if (voiceRow && voiceRow.storage_path) {
+            const { data: signed, error: signError } = await supabaseAdminClient.storage
+              .from("voice-messages")
+              .createSignedUrl(voiceRow.storage_path, 3600);
+
+            if (!signError && signed?.signedUrl) {
+              voiceMessage = {
+                url: signed.signedUrl,
+                audioUrl: signed.signedUrl,
+                mimeType: voiceRow.mime_type,
+                durationMs: voiceRow.duration_ms,
+                transcript: voiceRow.transcript || undefined,
+              };
+            }
+          }
+
           const fullExperience: ExperienceData = {
             id: exp.id,
             slug: exp.slug || slug,
@@ -127,6 +152,7 @@ export class SupabaseExperienceRepository {
             photos,
             musicTitle: musicRows?.title || undefined,
             musicUrl: musicRows?.source_url || undefined,
+            voiceMessage,
             isPinProtected: exp.is_pin_protected,
             pin: undefined,
             createdAt: exp.created_at,

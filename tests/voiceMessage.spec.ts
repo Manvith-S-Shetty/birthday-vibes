@@ -647,5 +647,155 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
       const secondBody = await secondRes.json();
       expect(secondBody.success).toBe(true);
     });
+
+    test("20. Recipient Protected Payload Contains Signed voiceMessage Data", async ({ request }) => {
+      const voiceDraft = {
+        id: "draft_test_recipient_voice",
+        recipientName: "Recipient Voice Test",
+        birthdayDate: "2026-10-25",
+        themeId: "midnight-cinema",
+        photos: [],
+        personalMessage: "Voice payload test",
+        isPinProtected: false,
+        currentStep: "publish",
+      };
+
+      const pubRes = await request.post("/api/create/publish", {
+        multipart: {
+          draft: JSON.stringify(voiceDraft),
+          voiceMetadata: JSON.stringify({
+            mimeType: "audio/webm",
+            durationMs: 6500,
+            transcript: "Hello recipient!",
+          }),
+          voiceAudio: {
+            name: "voice.webm",
+            mimeType: "audio/webm",
+            buffer: Buffer.from("recipient voice binary data"),
+          },
+        },
+      });
+
+      expect(pubRes.status()).toBe(200);
+      const pubBody = await pubRes.json();
+      const slug = pubBody.slug;
+      expect(slug).toBeDefined();
+
+      // Unauthenticated payload request must be rejected with 401
+      const unauthPayload = await request.get(`/api/g/${slug}/payload`);
+      expect(unauthPayload.status()).toBe(401);
+
+      // Locked cover metadata must NOT expose voiceMessage
+      const coverRes = await request.get(`/api/g/${slug}/cover`);
+      expect(coverRes.status()).toBe(200);
+      const coverBody = await coverRes.json();
+      expect(coverBody.voiceMessage).toBeUndefined();
+      expect(coverBody.audioUrl).toBeUndefined();
+
+      // Unlock experience (pin is empty string)
+      const unlockRes = await request.post(`/api/g/${slug}/unlock`, {
+        data: { pin: "" },
+      });
+      expect(unlockRes.status()).toBe(200);
+
+      // Extract set-cookie header from unlock response
+      const cookieHeader = unlockRes.headers()["set-cookie"];
+      expect(cookieHeader).toBeDefined();
+
+      // Authorized payload request returns full experience with signed voiceMessage
+      const authPayload = await request.get(`/api/g/${slug}/payload`, {
+        headers: { Cookie: cookieHeader },
+      });
+
+      expect(authPayload.status()).toBe(200);
+      const payloadBody = await authPayload.json();
+      expect(payloadBody.experience).toBeDefined();
+      expect(payloadBody.experience.voiceMessage).toBeDefined();
+      expect(payloadBody.experience.voiceMessage.audioUrl).toContain("token=");
+      expect(payloadBody.experience.voiceMessage.mimeType).toBe("audio/webm");
+      expect(payloadBody.experience.voiceMessage.durationMs).toBe(6500);
+      expect(payloadBody.experience.voiceMessage.transcript).toBe("Hello recipient!");
+    });
+
+    test("21. Recipient Payload Without Voice Does Not Contain voiceMessage", async ({ request }) => {
+      const noVoiceDraft = {
+        id: "draft_test_recipient_novoice",
+        recipientName: "Recipient No Voice Test",
+        birthdayDate: "2026-10-25",
+        themeId: "midnight-cinema",
+        photos: [],
+        personalMessage: "No voice payload test",
+        isPinProtected: false,
+        currentStep: "publish",
+        voiceMessage: { status: "none", durationMs: 0, mimeType: "" },
+      };
+
+      const pubRes = await request.post("/api/create/publish", {
+        headers: { "Content-Type": "application/json" },
+        data: { draft: noVoiceDraft, draftId: noVoiceDraft.id },
+      });
+
+      expect(pubRes.status()).toBe(200);
+      const pubBody = await pubRes.json();
+      const slug = pubBody.slug;
+
+      const unlockRes = await request.post(`/api/g/${slug}/unlock`, {
+        data: { pin: "" },
+      });
+      const cookieHeader = unlockRes.headers()["set-cookie"];
+
+      const authPayload = await request.get(`/api/g/${slug}/payload`, {
+        headers: { Cookie: cookieHeader },
+      });
+
+      expect(authPayload.status()).toBe(200);
+      const payloadBody = await authPayload.json();
+      expect(payloadBody.experience).toBeDefined();
+      expect(payloadBody.experience.voiceMessage).toBeUndefined();
+    });
+
+    test("22. Recipient UI Displays Voice Player and Play/Pause Controls", async ({ page }) => {
+      // Mock Audio play/pause in browser context
+      await page.addInitScript(() => {
+        window.HTMLAudioElement.prototype.play = async function () {
+          return Promise.resolve();
+        };
+        window.HTMLAudioElement.prototype.pause = function () {};
+      });
+
+      // Seed experience data into ExperienceRenderer via test route or live preview
+      await page.goto("/create");
+
+      // Verify Record Voice Note -> preview -> publish placeholder flow renders voice control
+      await page.getByRole("button", { name: "Record Voice Note" }).click();
+      const doneBtn = page.getByRole("button", { name: "Done Recording" });
+      await doneBtn.waitFor({ state: "visible", timeout: 5000 });
+      await doneBtn.click();
+
+      // Add transcript
+      const transcriptInput = page.locator("#voice-transcript-input");
+      if (await transcriptInput.isVisible()) {
+        await transcriptInput.fill("Testing live recipient voice player UI");
+      }
+
+      // Navigate to Step 07 Security and Step 08 Preview
+      await page.getByRole("button", { name: "Security & Lock" }).click();
+      await page.getByRole("button", { name: /Preview & Publish|Preview/i }).click();
+
+      // Check Voice Note button UI in ExperienceRenderer / StepPreview
+      const playBtn = page.getByRole("button", { name: "Play Birthday Message" }).first();
+      await expect(playBtn).toBeVisible();
+
+      // Click play
+      await playBtn.click();
+
+      // Button text/title should toggle to Pause Birthday Message
+      const pauseBtn = page.getByRole("button", { name: "Pause Birthday Message" }).first();
+      await expect(pauseBtn).toBeVisible();
+
+      // Click pause
+      await pauseBtn.click();
+      await expect(page.getByRole("button", { name: "Play Birthday Message" }).first()).toBeVisible();
+    });
   });
 });

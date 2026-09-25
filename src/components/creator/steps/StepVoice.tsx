@@ -79,6 +79,7 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -132,6 +133,7 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
   }, []);
 
   const cleanupStreamAndTimers = () => {
+    recordingStartedAtRef.current = null;
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -245,16 +247,21 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
       };
 
       recorder.onstop = () => {
+        const startedAt = recordingStartedAtRef.current;
+        const calculatedDurationMs = startedAt ? Math.max(1, Date.now() - startedAt) : 0;
+        recordingStartedAtRef.current = null;
+
         const audioBlob = new Blob(audioChunksRef.current, { type: codec.mimeType });
         const objectUrl = VoiceRecordingCache.set(draft.id, audioBlob);
         setPreviewUrl(objectUrl);
         setStatus("recorded");
+        setDurationSeconds(Math.round(calculatedDurationMs / 1000));
 
         // Sync metadata with draft
         onUpdate({
           voiceMessage: {
             status: "recorded",
-            durationMs: durationSeconds * 1000,
+            durationMs: calculatedDurationMs,
             mimeType: codec.mimeType,
             transcript: transcript.trim() || undefined,
             updatedAt: new Date().toISOString(),
@@ -262,6 +269,7 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
         });
       };
 
+      recordingStartedAtRef.current = Date.now();
       recorder.start(100); // 100ms timeslice
       setStatus("recording");
       setDurationSeconds(0);

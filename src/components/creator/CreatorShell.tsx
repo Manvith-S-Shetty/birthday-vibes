@@ -9,6 +9,7 @@ import { useTheme } from "@/components/themes/ThemeProvider";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 
+import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
 import { StepRecipient } from "./steps/StepRecipient";
 import { StepMood } from "./steps/StepMood";
 import { StepMemories } from "./steps/StepMemories";
@@ -113,8 +114,18 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
       </div>
     );
   }
-
   // Construct real-time experience data for live preview
+  const cachedVoice = VoiceRecordingCache.get(draft.id);
+  const livePreviewVoice = cachedVoice
+    ? {
+        url: cachedVoice.objectUrl,
+        audioUrl: cachedVoice.objectUrl,
+        mimeType: cachedVoice.blob.type || draft.voiceMessage?.mimeType || "audio/webm",
+        durationMs: draft.voiceMessage?.durationMs || 0,
+        transcript: draft.voiceMessage?.transcript || undefined,
+      }
+    : undefined;
+
   const livePreviewData: ExperienceData = {
     id: draft.id,
     slug: draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "live-preview",
@@ -125,6 +136,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
     photos: draft.photos,
     musicTitle: draft.musicTitle,
     musicUrl: draft.musicUrl,
+    voiceMessage: livePreviewVoice,
     isPinProtected: draft.isPinProtected,
     pin: draft.pin,
     createdAt: draft.createdAt,

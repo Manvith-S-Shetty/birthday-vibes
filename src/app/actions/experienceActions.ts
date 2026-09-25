@@ -108,6 +108,45 @@ export async function publishExperience(
   // Otherwise retrieve the recording from the in-memory cache.
   const cachedRecording = VoiceRecordingCache.get(draftId);
   const recording = voiceBlob || cachedRecording?.blob;
+  const hasVoiceRecording = !!recording || (draft?.voiceMessage && draft.voiceMessage.status === "recorded");
+
+  if (hasVoiceRecording || recording) {
+    const mimeType = recording?.type || draft?.voiceMessage?.mimeType || "";
+    const durationMs = draft?.voiceMessage?.durationMs ?? 0;
+    const fileSize = recording?.size || 0;
+
+    const isAudioMime =
+      mimeType &&
+      (mimeType.toLowerCase().startsWith("audio/") ||
+        mimeType.toLowerCase().includes("webm") ||
+        mimeType.toLowerCase().includes("ogg") ||
+        mimeType.toLowerCase().includes("wav") ||
+        mimeType.toLowerCase().includes("mp4") ||
+        mimeType.toLowerCase().includes("aac") ||
+        mimeType.toLowerCase().includes("mpeg") ||
+        mimeType.toLowerCase().includes("m4a"));
+
+    if (!isAudioMime) {
+      return {
+        success: false,
+        error: "Invalid voice message MIME type.",
+      };
+    }
+
+    if (recording && (fileSize <= 0 || fileSize > 10485760)) {
+      return {
+        success: false,
+        error: "Voice message file size must be between 1 byte and 10MB.",
+      };
+    }
+
+    if (durationMs <= 0 || durationMs > 180000) {
+      return {
+        success: false,
+        error: "Voice message duration must be between 1ms and 180000ms.",
+      };
+    }
+  }
 
   if (recording) {
     formData.append(

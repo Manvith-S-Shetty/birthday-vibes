@@ -7,13 +7,23 @@ import { Button } from "@/components/ui/Button";
 import { Feather, ArrowRight, ArrowLeft, Eye } from "lucide-react";
 import { motion } from "framer-motion";
 
+import { VoiceMessagePlayer } from "../VoiceMessagePlayer";
+
 interface LetterSceneProps {
   data: ExperienceData;
   onNext: () => void;
   onPrev: () => void;
+  isPlayingVoice?: boolean;
+  onToggleVoice?: () => void;
 }
 
-export function LetterScene({ data, onNext, onPrev }: LetterSceneProps) {
+export function LetterScene({
+  data,
+  onNext,
+  onPrev,
+  isPlayingVoice = false,
+  onToggleVoice,
+}: LetterSceneProps) {
   const fullText = data.personalMessage || "Wishing you a birthday filled with joy, magic, and light.";
   const [displayedText, setDisplayedText] = useState<string>("");
   const [isFullyRevealed, setIsFullyRevealed] = useState<boolean>(false);
@@ -66,46 +76,57 @@ export function LetterScene({ data, onNext, onPrev }: LetterSceneProps) {
       </div>
 
       {/* Editorial Parchment Paper Card Container */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 my-auto max-w-2xl w-full bg-[var(--theme-bg-card)] border border-[var(--theme-border-strong)] rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 box-glow-sm"
-      >
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <div className="flex items-center gap-2 text-xs font-serif text-[var(--theme-text-accent)] uppercase tracking-widest font-semibold">
-            <Feather className="w-4 h-4" />
-            <span>To {data.recipientName}</span>
+      <div className="relative z-10 my-auto max-w-2xl w-full space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full bg-[var(--theme-bg-card)] border border-[var(--theme-border-strong)] rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 box-glow-sm"
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex items-center gap-2 text-xs font-serif text-[var(--theme-text-accent)] uppercase tracking-widest font-semibold">
+              <Feather className="w-4 h-4" />
+              <span>To {data.recipientName}</span>
+            </div>
+            {!isFullyRevealed && (
+              <button
+                type="button"
+                onClick={handleRevealAll}
+                className="px-3 py-1.5 min-h-[44px] text-[11px] uppercase tracking-widest text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)] flex items-center gap-1.5 opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent-primary)] rounded-lg"
+                aria-label="Reveal full letter immediately"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Read Full Letter</span>
+              </button>
+            )}
           </div>
-          {!isFullyRevealed && (
-            <button
-              type="button"
-              onClick={handleRevealAll}
-              className="px-3 py-1.5 min-h-[44px] text-[11px] uppercase tracking-widest text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)] flex items-center gap-1.5 opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-[var(--theme-accent-primary)] rounded-lg"
-              aria-label="Reveal full letter immediately"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Read Full Letter</span>
-            </button>
-          )}
-        </div>
 
-        {/* Typewriter Text Container */}
-        <div className="min-h-[160px] flex items-center py-2">
-          <p className="font-serif text-xl sm:text-2xl leading-relaxed italic text-[var(--theme-text-primary)] whitespace-pre-wrap max-w-prose">
-            &ldquo;{displayedText}&rdquo;
-            {!isFullyRevealed && <span className="animate-pulse inline-block ml-1 font-sans text-xl text-[var(--theme-text-accent)]">|</span>}
-          </p>
-        </div>
+          {/* Typewriter Text Container */}
+          <div className="min-h-[160px] flex items-center py-2">
+            <p className="font-serif text-xl sm:text-2xl leading-relaxed italic text-[var(--theme-text-primary)] whitespace-pre-wrap max-w-prose">
+              &ldquo;{displayedText}&rdquo;
+              {!isFullyRevealed && <span className="animate-pulse inline-block ml-1 font-sans text-xl text-[var(--theme-text-accent)]">|</span>}
+            </p>
+          </div>
 
-        {/* Signature Footer */}
-        <div className="border-t border-white/10 pt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--theme-text-secondary)]">
-          <span className="font-serif italic text-base text-[var(--theme-text-accent)]">
-            With endless warmth & affection
-          </span>
-          <Caption>Birthday Vibes Keepsake</Caption>
-        </div>
-      </motion.div>
+          {/* Signature Footer */}
+          <div className="border-t border-white/10 pt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--theme-text-secondary)]">
+            <span className="font-serif italic text-base text-[var(--theme-text-accent)]">
+              With endless warmth & affection
+            </span>
+            <Caption>Birthday Vibes Keepsake</Caption>
+          </div>
+        </motion.div>
+
+        {/* Dedicated Voice Message Player */}
+        {(data.voiceMessage?.url || data.voiceMessage?.audioUrl) && onToggleVoice && (
+          <VoiceMessagePlayer
+            voiceMessage={data.voiceMessage}
+            isPlaying={isPlayingVoice}
+            onTogglePlay={onToggleVoice}
+          />
+        )}
+      </div>
 
       {/* Navigation Controls */}
       <div className="relative z-10 flex items-center justify-between w-full max-w-xl pt-4">
