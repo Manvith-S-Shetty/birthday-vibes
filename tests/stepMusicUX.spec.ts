@@ -154,7 +154,7 @@ test.describe("V2-B: Phase B3.3 — Music UX & Interaction Spec", () => {
     await expect(page.getByRole("button", { name: `Pause preview of ${track.title}` })).toBeVisible();
 
     // Navigate away from Music to Security step via Next button or step nav
-    const securityNavBtn = page.getByRole("button", { name: /06\.\s*Security/i });
+    const securityNavBtn = page.getByRole("button", { name: /(06|07)\.\s*Security|Security/i });
     await securityNavBtn.click();
 
     await expect(page.getByRole("heading", { name: "Lock your birthday surprise" })).toBeVisible();

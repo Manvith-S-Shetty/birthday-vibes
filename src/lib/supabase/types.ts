@@ -161,6 +161,42 @@ export interface Database {
           created_at?: string;
         };
       };
+      voice_messages: {
+        Row: {
+          id: string;
+          experience_id: string;
+          storage_path: string;
+          mime_type: string;
+          duration_ms: number;
+          file_size_bytes: number;
+          transcript: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          experience_id: string;
+          storage_path: string;
+          mime_type: string;
+          duration_ms: number;
+          file_size_bytes: number;
+          transcript?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          experience_id?: string;
+          storage_path?: string;
+          mime_type?: string;
+          duration_ms?: number;
+          file_size_bytes?: number;
+          transcript?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
+

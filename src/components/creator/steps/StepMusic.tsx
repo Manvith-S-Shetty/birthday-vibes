@@ -424,7 +424,7 @@ export function StepMusic({ draft, onUpdate, onNext, onPrev }: StepMusicProps) {
           <span>Back</span>
         </Button>
         <Button variant="gold-glow" size="lg" onClick={onNext}>
-          <span>Lock Experience</span>
+          <span>Add Voice Note</span>
           <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
