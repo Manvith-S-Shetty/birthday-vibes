@@ -72,6 +72,7 @@ function getAudioExtensionFromMime(mimeType: string): string {
 }
 
 export async function POST(request: Request) {
+  console.time("[PUBLISH_TIMING] total_publish_route");
   let body: { draftId?: string; draft?: BirthdayDraft } = {};
   let voiceAudio: File | null = null;
   let voiceMetadata: {
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
       body = await request.json();
     }
   } catch {
+    console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
       { error: "Invalid publish request." },
       { status: 400 }
@@ -124,6 +126,7 @@ export async function POST(request: Request) {
   const draft = body.draft || (await localDraftRepository.getDraft(draftId));
 
   if (!draft || !draft.recipientName.trim()) {
+    console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
       { error: "Recipient name is required before publishing." },
       { status: 400 }
@@ -133,6 +136,7 @@ export async function POST(request: Request) {
   // 2. Validate PIN and generate high-entropy slug & salted PIN hash
   const pin = (draft.pin || "").trim();
   if (draft.isPinProtected && !pin) {
+    console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
       { error: "A PIN is required before publishing." },
       { status: 400 }
@@ -172,6 +176,7 @@ export async function POST(request: Request) {
         voiceMimeType.toLowerCase().includes("m4a"));
 
     if (!isAudioMime) {
+      console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
         { error: "Invalid voice message MIME type." },
         { status: 400 }
@@ -179,6 +184,7 @@ export async function POST(request: Request) {
     }
 
     if (voiceFileSize <= 0 || voiceFileSize > 10485760) {
+      console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
         { error: "Voice message file size must be between 1 byte and 10MB." },
         { status: 400 }
@@ -186,6 +192,7 @@ export async function POST(request: Request) {
     }
 
     if (voiceDurationMs <= 0 || voiceDurationMs > 180000) {
+      console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
         { error: "Voice message duration must be between 1ms and 180000ms." },
         { status: 400 }
@@ -198,6 +205,7 @@ export async function POST(request: Request) {
 
   if (isSupabaseConfigured()) {
     try {
+      console.time("[PUBLISH_TIMING] total_supabase_pipeline");
       // Upsert experience using ONLY creator_token_hash (NEVER raw secret)
       const experienceRow: any = {
         creator_session_token: creatorTokenHash,
@@ -217,21 +225,28 @@ export async function POST(request: Request) {
         experienceRow.id = draft.id;
       }
 
+      console.time("[PUBLISH_TIMING] 1. upsert_experience");
       const { data: exp, error: expError } = await (supabaseAdminClient as any)
         .from("experiences")
         .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
         .select()
         .single();
+      console.timeEnd("[PUBLISH_TIMING] 1. upsert_experience");
 
       if (expError) throw expError;
 
-      // Media Persistence & Storage Upload
-      if (draft.photos && draft.photos.length > 0) {
-        await (supabaseAdminClient as any).from("media").delete().eq("experience_id", exp.id);
+      // Define independent persistence tasks to execute concurrently
+      const mediaTask = (async () => {
+        if (!draft.photos || draft.photos.length === 0) return;
 
-        const mediaInserts = [];
-        for (let idx = 0; idx < draft.photos.length; idx++) {
-          const p = draft.photos[idx];
+        console.time("[PUBLISH_TIMING] media_persistence");
+        const deletePromise = (supabaseAdminClient as any)
+          .from("media")
+          .delete()
+          .eq("experience_id", exp.id);
+
+        console.time("[PUBLISH_TIMING] photo_uploads");
+        const uploadPromises = draft.photos.map(async (p, idx) => {
           let storagePath = p.url;
           let mimeType = "image/jpeg";
           let fileSize = 1024;
@@ -262,29 +277,47 @@ export async function POST(request: Request) {
             }
           }
 
-          mediaInserts.push({
-            experience_id: exp.id,
-            storage_path: storagePath,
-            type: "image",
-            caption: p.caption || null,
-            sort_order: idx + 1,
-            metadata: {
-              mime_type: mimeType,
-              file_size: fileSize,
+          return {
+            idx,
+            item: {
+              experience_id: exp.id,
+              storage_path: storagePath,
+              type: "image",
+              caption: p.caption || null,
+              sort_order: idx + 1,
+              metadata: {
+                mime_type: mimeType,
+                file_size: fileSize,
+              },
             },
-          });
-        }
+          };
+        });
+
+        const uploadResults = await Promise.all(uploadPromises);
+        console.timeEnd("[PUBLISH_TIMING] photo_uploads");
+
+        uploadResults.sort((a, b) => a.idx - b.idx);
+        const mediaInserts = uploadResults.map((r) => r.item);
+
+        const { error: deleteError } = await deletePromise;
+        if (deleteError) throw deleteError;
 
         if (mediaInserts.length > 0) {
+          console.time("[PUBLISH_TIMING] media_inserts");
           const { error: mediaError } = await (supabaseAdminClient as any)
             .from("media")
             .insert(mediaInserts);
+          console.timeEnd("[PUBLISH_TIMING] media_inserts");
+
           if (mediaError) throw mediaError;
         }
-      }
+        console.timeEnd("[PUBLISH_TIMING] media_persistence");
+      })();
 
-      // Music Persistence
-      if (draft.musicTitle) {
+      const musicTask = (async () => {
+        if (!draft.musicTitle) return;
+
+        console.time("[PUBLISH_TIMING] music_persistence");
         const matchedTrack = CURATED_MUSIC_TRACKS.find(
           (t) => t.id === draft.musicTrackId
         );
@@ -298,82 +331,152 @@ export async function POST(request: Request) {
           artist: matchedTrack?.artist || null,
           enabled: true,
         });
-      }
+        console.timeEnd("[PUBLISH_TIMING] music_persistence");
+      })();
 
-      // Voice Message Persistence & Storage Upload
-      if (hasVoiceRecording && voiceAudio) {
-        try {
-          const { data: bucketData, error: bucketError } = await supabaseAdminClient.storage.getBucket("voice-messages");
-          if (bucketError || !bucketData) {
-            await supabaseAdminClient.storage.createBucket("voice-messages", { public: false });
-          }
-        } catch {
-          // Ignore if bucket already exists or management is restricted
-        }
+      const voiceTask = (async () => {
+        if (hasVoiceRecording && voiceAudio) {
+          console.time("[PUBLISH_TIMING] voice_persistence");
+          const ext = getAudioExtensionFromMime(voiceMimeType);
+          const storagePath = `${exp.id}/voice-message.${ext}`;
+          const buffer = Buffer.from(await voiceAudio.arrayBuffer());
 
-        const ext = getAudioExtensionFromMime(voiceMimeType);
-        const storagePath = `${exp.id}/voice-message.${ext}`;
-        const buffer = Buffer.from(await voiceAudio.arrayBuffer());
-
-        const { data: existingVoice } = await (supabaseAdminClient as any)
-          .from("voice_messages")
-          .select("storage_path")
-          .eq("experience_id", exp.id)
-          .maybeSingle();
-
-        if (existingVoice && existingVoice.storage_path !== storagePath) {
-          await supabaseAdminClient.storage
-            .from("voice-messages")
-            .remove([existingVoice.storage_path]);
-        }
-
-        const { error: uploadError } = await supabaseAdminClient.storage
-          .from("voice-messages")
-          .upload(storagePath, buffer, {
-            contentType: voiceMimeType,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error("Supabase Storage voice message upload failed:", storagePath, uploadError);
-          throw uploadError;
-        }
-
-        const voiceRow = {
-          experience_id: exp.id,
-          storage_path: storagePath,
-          mime_type: voiceMimeType,
-          duration_ms: Math.round(voiceDurationMs),
-          file_size_bytes: voiceFileSize,
-          transcript: voiceTranscript,
-          updated_at: new Date().toISOString(),
-        };
-
-        const { error: voiceDbError } = await (supabaseAdminClient as any)
-          .from("voice_messages")
-          .upsert(voiceRow, { onConflict: "experience_id" });
-
-        if (voiceDbError) throw voiceDbError;
-      } else if (draft.voiceMessage?.status === "none" || (!hasVoiceRecording && !voiceAudio)) {
-        const { data: existingVoice } = await (supabaseAdminClient as any)
-          .from("voice_messages")
-          .select("storage_path")
-          .eq("experience_id", exp.id)
-          .maybeSingle();
-
-        if (existingVoice) {
-          await supabaseAdminClient.storage
-            .from("voice-messages")
-            .remove([existingVoice.storage_path]);
-
-          await (supabaseAdminClient as any)
+          const existingVoicePromise = (supabaseAdminClient as any)
             .from("voice_messages")
-            .delete()
-            .eq("experience_id", exp.id);
+            .select("storage_path")
+            .eq("experience_id", exp.id)
+            .maybeSingle();
+
+          console.time("[PUBLISH_TIMING] voice_storage_upload");
+          let { error: uploadError } = await supabaseAdminClient.storage
+            .from("voice-messages")
+            .upload(storagePath, buffer, {
+              contentType: voiceMimeType,
+              upsert: true,
+            });
+
+          if (
+            uploadError &&
+            (uploadError.message?.includes("Bucket not found") ||
+              (uploadError as any).statusCode === 404 ||
+              (uploadError as any).error === "Bucket not found")
+          ) {
+            try {
+              await supabaseAdminClient.storage.createBucket("voice-messages", { public: false });
+              const retry = await supabaseAdminClient.storage
+                .from("voice-messages")
+                .upload(storagePath, buffer, {
+                  contentType: voiceMimeType,
+                  upsert: true,
+                });
+              uploadError = retry.error;
+            } catch {
+              // Bucket creation retry fallback
+            }
+          }
+
+          if (uploadError) {
+            console.error("Supabase Storage voice message upload failed:", storagePath, uploadError);
+            throw uploadError;
+          }
+          console.timeEnd("[PUBLISH_TIMING] voice_storage_upload");
+
+          const { data: existingVoice } = await existingVoicePromise;
+          if (existingVoice && existingVoice.storage_path !== storagePath) {
+            await supabaseAdminClient.storage
+              .from("voice-messages")
+              .remove([existingVoice.storage_path]);
+          }
+
+          console.time("[PUBLISH_TIMING] voice_db_upsert");
+          const voiceRow = {
+            experience_id: exp.id,
+            storage_path: storagePath,
+            mime_type: voiceMimeType,
+            duration_ms: Math.round(voiceDurationMs),
+            file_size_bytes: voiceFileSize,
+            transcript: voiceTranscript,
+            updated_at: new Date().toISOString(),
+          };
+
+          const { error: voiceDbError } = await (supabaseAdminClient as any)
+            .from("voice_messages")
+            .upsert(voiceRow, { onConflict: "experience_id" });
+
+          if (voiceDbError) throw voiceDbError;
+          console.timeEnd("[PUBLISH_TIMING] voice_db_upsert");
+          console.timeEnd("[PUBLISH_TIMING] voice_persistence");
+        } else if (draft.voiceMessage?.status === "none" || (!hasVoiceRecording && !voiceAudio)) {
+          const { data: existingVoice } = await (supabaseAdminClient as any)
+            .from("voice_messages")
+            .select("storage_path")
+            .eq("experience_id", exp.id)
+            .maybeSingle();
+
+          if (existingVoice) {
+            await supabaseAdminClient.storage
+              .from("voice-messages")
+              .remove([existingVoice.storage_path]);
+
+            await (supabaseAdminClient as any)
+              .from("voice_messages")
+              .delete()
+              .eq("experience_id", exp.id);
+          }
         }
-      }
+      })();
+
+      const momentsTask = (async () => {
+        console.time("[PUBLISH_TIMING] moments_persistence");
+        console.time("[PUBLISH_TIMING] delete_existing_moments");
+        const { error: deleteMomentsError } = await (supabaseAdminClient as any)
+          .from("experience_moments")
+          .delete()
+          .eq("experience_id", exp.id);
+        console.timeEnd("[PUBLISH_TIMING] delete_existing_moments");
+
+        if (deleteMomentsError) throw deleteMomentsError;
+
+        if (Array.isArray(draft.moments) && draft.moments.length > 0) {
+          const VALID_MOMENT_TYPES = new Set([
+            "mystery_gift",
+            "memory_quiz",
+            "birthday_roulette",
+            "hidden_message",
+            "birthday_coupon",
+            "countdown",
+            "wish_moment",
+          ]);
+
+          const momentInserts = draft.moments
+            .filter((m) => m && typeof m === "object" && m.enabled !== false && VALID_MOMENT_TYPES.has(m.momentType))
+            .map((m, idx) => ({
+              experience_id: exp.id,
+              moment_type: m.momentType,
+              config_json: m.config && typeof m.config === "object" ? m.config : {},
+              sort_order: typeof m.sortOrder === "number" ? m.sortOrder : idx + 1,
+              enabled: true,
+            }));
+
+          if (momentInserts.length > 0) {
+            console.time("[PUBLISH_TIMING] insert_moments");
+            const { error: momentsError } = await (supabaseAdminClient as any)
+              .from("experience_moments")
+              .insert(momentInserts);
+            console.timeEnd("[PUBLISH_TIMING] insert_moments");
+
+            if (momentsError) throw momentsError;
+          }
+        }
+        console.timeEnd("[PUBLISH_TIMING] moments_persistence");
+      })();
+
+      // Run all independent persistence steps concurrently
+      await Promise.all([mediaTask, musicTask, voiceTask, momentsTask]);
+      console.timeEnd("[PUBLISH_TIMING] total_supabase_pipeline");
     } catch (e) {
       console.error("Supabase publish error:", e);
+      console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
         { error: "Failed to persist experience to database. Please try again." },
         { status: 500 }
@@ -389,6 +492,7 @@ export async function POST(request: Request) {
 
   const { url: validatedAppUrl, error: appUrlError } = getValidatedCanonicalAppUrl(request);
   if (appUrlError || !validatedAppUrl) {
+    console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
       { error: appUrlError || "Server configuration error: Invalid canonical URL." },
       { status: 500 }
@@ -397,6 +501,7 @@ export async function POST(request: Request) {
 
   const shareUrl = new URL(`/g/${slug}`, validatedAppUrl).toString();
 
+  console.timeEnd("[PUBLISH_TIMING] total_publish_route");
   return NextResponse.json({
     success: true,
     slug,

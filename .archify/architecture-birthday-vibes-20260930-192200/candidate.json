@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Birthday Vibes — System Architecture",
+    "subtitle": "Creator flow · PIN auth · Supabase backend · Storage",
+    "output": ".archify/architecture-birthday-vibes-20260930-192200/birthday-vibes.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Manvith-S-Shetty/birthday-vibes.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "4993a45cb4057446acd453346b4fab3a1a478a3c"
+    }
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "Browser",
+      "sublabel": "Creator or Recipient",
+      "pos": [40, 360],
+      "size": [120, 60]
+    },
+    {
+      "id": "nextjs_pages",
+      "type": "frontend",
+      "label": "Next.js App Router",
+      "sublabel": "React 18 / TypeScript",
+      "pos": [230, 360],
+      "size": [150, 60],
+      "sources": [
+        { "path": "src/app/layout.tsx", "line": 1 },
+        { "path": "src/app/page.tsx", "line": 1 }
+      ]
+    },
+    {
+      "id": "creator_shell",
+      "type": "frontend",
+      "label": "Creator Shell",
+      "sublabel": "9-step wizard",
+      "pos": [280, 200],
+      "size": [150, 60],
+      "sources": [
+        { "path": "src/components/creator/CreatorShell.tsx", "line": 28 }
+      ]
+    },
+    {
+      "id": "experience_renderer",
+      "type": "frontend",
+      "label": "Experience Renderer",
+      "sublabel": "Cinematic scenes",
+      "pos": [230, 520],
+      "size": [150, 60],
+      "sources": [
+        { "path": "src/components/experience/ExperienceRenderer.tsx", "line": 1 }
+      ]
+    },
+    {
+      "id": "local_draft",
+      "type": "database",
+      "label": "LocalDraftRepository",
+      "sublabel": "Browser localStorage",
+      "pos": [40, 270],
+      "size": [150, 60],
+      "sources": [
+        { "path": "src/lib/draft/LocalDraftRepository.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "voice_cache",
+      "type": "database",
+      "label": "VoiceRecordingCache",
+      "sublabel": "In-memory Blob cache",
+      "pos": [40, 80],
+      "size": [150, 60],
+      "sources": [
+        { "path": "src/lib/draft/VoiceRecordingCache.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "api_publish",
+      "type": "backend",
+      "label": "POST /api/create/publish",
+      "sublabel": "Next.js Route Handler",
+      "pos": [600, 200],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/app/api/create/publish/route.ts", "line": 74 }
+      ]
+    },
+    {
+      "id": "api_cover",
+      "type": "backend",
+      "label": "GET /api/g/[slug]/cover",
+      "sublabel": "Public metadata",
+      "pos": [600, 340],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/app/actions/experienceActions.ts", "line": 35 }
+      ]
+    },
+    {
+      "id": "api_unlock",
+      "type": "backend",
+      "label": "POST /api/g/[slug]/unlock",
+      "sublabel": "PIN verification + cookie",
+      "pos": [600, 460],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/app/api/g/[slug]/unlock/route.ts", "line": 11 }
+      ]
+    },
+    {
+      "id": "api_payload",
+      "type": "backend",
+      "label": "GET /api/g/[slug]/payload",
+      "sublabel": "Protected experience data",
+      "pos": [600, 580],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/app/api/g/[slug]/payload/route.ts", "line": 5 }
+      ]
+    },
+    {
+      "id": "security",
+      "type": "security",
+      "label": "Security Layer",
+      "sublabel": "Hash · Session · Rate-limit",
+      "pos": [870, 460],
+      "size": [150, 60],
+      "tag": "HMAC-SHA256 · HttpOnly",
+      "sources": [
+        { "path": "src/lib/security/session.ts", "line": 1 },
+        { "path": "src/lib/security/hash.ts", "line": 1 },
+        { "path": "src/lib/security/rateLimit.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "supabase_db",
+      "type": "database",
+      "label": "Supabase Postgres",
+      "sublabel": "experiences · media · music · voice_messages",
+      "pos": [1100, 340],
+      "size": [170, 70],
+      "sources": [
+        { "path": "supabase/migrations/20260913_phase4_schema.sql", "line": 1 },
+        { "path": "supabase/migrations/20260920_v2_c3_voice_messages.sql", "line": 1 }
+      ]
+    },
+    {
+      "id": "supabase_storage",
+      "type": "cloud",
+      "label": "Supabase Storage",
+      "sublabel": "experience-media · voice-messages",
+      "pos": [1100, 200],
+      "size": [170, 60],
+      "sources": [
+        { "path": "src/app/api/create/publish/route.ts", "line": 252 }
+      ]
+    },
+    {
+      "id": "vercel",
+      "type": "cloud",
+      "label": "Vercel",
+      "sublabel": "Hosting / Edge Runtime",
+      "pos": [870, 200],
+      "size": [150, 60]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Supabase Cloud",
+      "wraps": ["supabase_db", "supabase_storage"],
+      "pad": 20
+    },
+    {
+      "kind": "security-group",
+      "label": "Server-only (HttpOnly cookies · service role key)",
+      "wraps": ["api_publish", "api_unlock", "api_payload", "security"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-to-app",
+      "from": "browser",
+      "to": "nextjs_pages",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-to-creator",
+      "from": "nextjs_pages",
+      "to": "creator_shell",
+      "label": "route /create",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "app-to-renderer",
+      "from": "nextjs_pages",
+      "to": "experience_renderer",
+      "label": "route /g/[slug]",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "creator-to-local-draft",
+      "from": "creator_shell",
+      "to": "local_draft",
+      "label": "save draft",
+      "variant": "dashed"
+    },
+    {
+      "id": "creator-to-voice-cache",
+      "from": "creator_shell",
+      "to": "voice_cache",
+      "label": "cache Blob",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "creator-publish",
+      "from": "creator_shell",
+      "to": "api_publish",
+      "label": "POST multipart/form-data"
+    },
+    {
+      "id": "renderer-to-cover",
+      "from": "experience_renderer",
+      "to": "api_cover",
+      "label": "GET cover metadata"
+    },
+    {
+      "id": "renderer-to-unlock",
+      "from": "experience_renderer",
+      "to": "api_unlock",
+      "label": "POST PIN",
+      "variant": "security"
+    },
+    {
+      "id": "renderer-to-payload",
+      "from": "experience_renderer",
+      "to": "api_payload",
+      "label": "GET (cookie-auth)",
+      "variant": "security"
+    },
+    {
+      "id": "publish-to-security",
+      "from": "api_publish",
+      "to": "security",
+      "label": "hashPin · creatorSession",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "unlock-to-security",
+      "from": "api_unlock",
+      "to": "security",
+      "label": "verifyPin · rateLimit · setAuthCookie",
+      "variant": "security"
+    },
+    {
+      "id": "payload-to-security",
+      "from": "api_payload",
+      "to": "security",
+      "label": "isRecipientAuthorized",
+      "variant": "security"
+    },
+    {
+      "id": "publish-to-db",
+      "from": "api_publish",
+      "to": "supabase_db",
+      "label": "upsert experience · media · music",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "publish-to-storage",
+      "from": "api_publish",
+      "to": "supabase_storage",
+      "label": "upload image / audio",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "payload-to-db",
+      "from": "api_payload",
+      "to": "supabase_db",
+      "label": "SELECT experience + joined tables"
+    },
+    {
+      "id": "unlock-to-db",
+      "from": "api_unlock",
+      "to": "supabase_db",
+      "label": "SELECT pin_hash · pin_salt"
+    },
+    {
+      "id": "vercel-hosts",
+      "from": "vercel",
+      "to": "api_publish",
+      "label": "hosts",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Frontend",
+      "items": [
+        "Next.js 14 App Router with React 18",
+        "Creator Shell: 9-step guided wizard",
+        "Experience Renderer: cinematic scene player",
+        "Draft persisted to localStorage between steps",
+        "Voice Blob held in-memory (VoiceRecordingCache)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "API Routes (Next.js Route Handlers)",
+      "items": [
+        "POST /api/create/publish — validate, hash PIN, upsert to Supabase",
+        "GET  /api/g/[slug]/cover — public cover metadata (no auth)",
+        "POST /api/g/[slug]/unlock — PIN check, rate-limit, set HttpOnly cookie",
+        "GET  /api/g/[slug]/payload — cookie-gated experience payload"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Authentication & Security",
+      "items": [
+        "Creator: long-lived HttpOnly session cookie (cr_sec_…)",
+        "Recipient: slug-scoped HMAC-SHA256 token in HttpOnly cookie (1h TTL)",
+        "PIN stored as salted hash (hashPin / verifyPin)",
+        "In-memory rate limiter per IP+slug on unlock route"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Database (Supabase Postgres)",
+      "items": [
+        "experiences — core row with slug, theme, PIN hash/salt",
+        "media — image references with Supabase Storage paths",
+        "music — curated track metadata",
+        "voice_messages — audio metadata + storage path"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Storage (Supabase Storage)",
+      "items": [
+        "experience-media bucket — uploaded photo blobs",
+        "voice-messages bucket (private) — recorded audio files",
+        "Service role key used server-side only (never exposed to client)"
+      ]
+    }
+  ]
+}

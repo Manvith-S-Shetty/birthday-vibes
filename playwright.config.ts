@@ -1,4 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "fs";
+import path from "path";
+
+// Load environment variables from .env.local if present
+const envPath = path.resolve(process.cwd(), ".env.local");
+if (fs.existsSync(envPath)) {
+  const envConfig = fs.readFileSync(envPath, "utf8");
+  for (const line of envConfig.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const [key, ...vals] = trimmed.split("=");
+      if (key && !process.env[key.trim()]) {
+        process.env[key.trim()] = vals.join("=").trim();
+      }
+    }
+  }
+}
 
 /**
  * Playwright Configuration — Birthday Vibes

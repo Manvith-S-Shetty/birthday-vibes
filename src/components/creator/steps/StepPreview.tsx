@@ -39,6 +39,7 @@ export function StepPreview({ draft, onNext, onPrev }: StepPreviewProps) {
     musicTitle: draft.musicTitle,
     musicUrl: draft.musicUrl,
     voiceMessage,
+    moments: draft.moments,
     isPinProtected: draft.isPinProtected,
     pin: draft.pin,
     createdAt: draft.createdAt,

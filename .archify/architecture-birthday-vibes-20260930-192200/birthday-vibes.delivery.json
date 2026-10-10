@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "1a382ace-4e7d-42cb-9ca7-a807380f3abb",
+  "status": "failed",
+  "command": "deliver",
+  "stage": "render",
+  "input": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\candidate.json",
+  "output": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\birthday-vibes.html",
+  "artifact": {
+    "sha256": "f4d481e606dc5678d9b645fc9bf6a10f4ddad2a8d476e497ed124b8528877c75",
+    "bytes": 786359
+  },
+  "error": "Architecture layout validation failed:\n- Label \"verifyPin · rateLimit · setAuthCookie\" overlaps component \"api_unlock\" — adjust labelDx/labelDy/labelSegment or set labelAt.\n  label rect: [720, 485, 188, 14]\n  component \"api_unlock\" rect: [600, 460, 190, 60]\n  Suggested fix: set labelAt [814, 534] or set labelDy 39 (below); or set labelAt [814, 452] or set labelDy -43 (above)\n- Label \"verifyPin · rateLimit · setAuthCookie\" overlaps component \"security\" — adjust labelDx/labelDy/labelSegment or set labelAt.\n  label rect: [720, 485, 188, 14]\n  component \"security\" rect: [870, 460, 150, 60]\n  Suggested fix: set labelAt [814, 534] or set labelDy 39 (below); or set labelAt [814, 452] or set labelDy -43 (above)\n- [composition/label-route-clearance] showcase architecture label \"verifyPin · rateLimit · setAuthCookie\" on connections[10] id \"unlock-to-security\" \"api_unlock\" -> \"security\" label \"verifyPin · rateLimit · setAuthCookie\" is 2px from connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" label \"SELECT pin_hash · pin_salt\" segment 0 [790, 483] -> [814, 483] (label rect [720, 485, 188, 14]; minimum 4px) — adjust labelAt, labelDx, labelDy, or labelSegment; otherwise adjust the other relationship route/via/channel.\n- [composition/label-route-clearance] showcase architecture label \"hosts\" on connections[16] id \"vercel-hosts\" \"vercel\" -> \"api_publish\" label \"hosts\" is 0px from connections[13] id \"publish-to-storage\" \"api_publish\" -> \"supabase_storage\" label \"upload image / audio\" segment 0 [790, 216] -> [867, 216] (label rect [813, 210, 34, 14]; minimum 4px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust labelAt, labelDx, labelDy, or labelSegment; otherwise adjust the other relationship route/via/channel."
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "command": "deliver",
+  "status": "pending",
+  "receiptId": "1a382ace-4e7d-42cb-9ca7-a807380f3abb",
+  "input": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\candidate.json",
+  "output": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\birthday-vibes.html"
+}

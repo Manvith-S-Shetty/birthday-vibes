@@ -659,7 +659,7 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
           <span>Back</span>
         </Button>
         <Button variant="gold-glow" size="lg" onClick={onNext} className="min-h-[48px]">
-          <span>Security & Lock</span>
+          <span>Interactive Moments</span>
           <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>

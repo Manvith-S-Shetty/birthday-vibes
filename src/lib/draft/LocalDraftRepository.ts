@@ -15,6 +15,12 @@ export const initialDraft: BirthdayDraft = {
   personalMessage: "",
   musicTrackId: "track_none",
   musicTitle: "No Music",
+  voiceMessage: {
+    status: "none",
+    durationMs: 0,
+    mimeType: "",
+  },
+  moments: [],
   pin: "",
   isPinProtected: false,
   currentStep: "recipient",
@@ -34,7 +40,11 @@ export class LocalDraftRepository implements DraftRepository {
         return { ...initialDraft, id: targetId };
       }
 
-      return JSON.parse(raw) as BirthdayDraft;
+      const parsed = JSON.parse(raw) as BirthdayDraft;
+      return {
+        ...parsed,
+        moments: Array.isArray(parsed.moments) ? parsed.moments : [],
+      };
     } catch (error) {
       console.warn("Failed to read draft from localStorage:", error);
       return initialDraft;

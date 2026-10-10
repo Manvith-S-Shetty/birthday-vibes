@@ -86,104 +86,138 @@ export async function publishExperience(
   draftOrId: BirthdayDraft | string,
   voiceBlob?: Blob
 ): Promise<PublishResult> {
-  const draft =
-    typeof draftOrId === "string"
-      ? undefined
-      : draftOrId;
+  console.log("[PUBLISH_CLIENT] start");
+  try {
+    const draft =
+      typeof draftOrId === "string"
+        ? undefined
+        : draftOrId;
 
-  const draftId =
-    typeof draftOrId === "string"
-      ? draftOrId
-      : draftOrId.id;
+    const draftId =
+      typeof draftOrId === "string"
+        ? draftOrId
+        : draftOrId?.id || "draft_default";
 
-  const formData = new FormData();
+    console.log("[PUBLISH_CLIENT] draft loaded", draftId);
 
-  if (draft) {
-    formData.append("draft", JSON.stringify(draft));
-  } else {
-    formData.append("draftId", draftId);
-  }
+    const formData = new FormData();
 
-  // Prefer the explicitly provided Blob.
-  // Otherwise retrieve the recording from the in-memory cache.
-  const cachedRecording = VoiceRecordingCache.get(draftId);
-  const recording = voiceBlob || cachedRecording?.blob;
-  const hasVoiceRecording = !!recording || (draft?.voiceMessage && draft.voiceMessage.status === "recorded");
-
-  if (hasVoiceRecording || recording) {
-    const mimeType = recording?.type || draft?.voiceMessage?.mimeType || "";
-    const durationMs = draft?.voiceMessage?.durationMs ?? 0;
-    const fileSize = recording?.size || 0;
-
-    const isAudioMime =
-      mimeType &&
-      (mimeType.toLowerCase().startsWith("audio/") ||
-        mimeType.toLowerCase().includes("webm") ||
-        mimeType.toLowerCase().includes("ogg") ||
-        mimeType.toLowerCase().includes("wav") ||
-        mimeType.toLowerCase().includes("mp4") ||
-        mimeType.toLowerCase().includes("aac") ||
-        mimeType.toLowerCase().includes("mpeg") ||
-        mimeType.toLowerCase().includes("m4a"));
-
-    if (!isAudioMime) {
-      return {
-        success: false,
-        error: "Invalid voice message MIME type.",
-      };
+    if (draft) {
+      formData.append("draft", JSON.stringify(draft));
+    } else {
+      formData.append("draftId", draftId);
     }
 
-    if (recording && (fileSize <= 0 || fileSize > 10485760)) {
-      return {
-        success: false,
-        error: "Voice message file size must be between 1 byte and 10MB.",
-      };
-    }
+    console.log("[PUBLISH_CLIENT] voice cache lookup");
+    const cachedRecording = VoiceRecordingCache.get(draftId) || (draft?.id ? VoiceRecordingCache.get(draft.id) : null);
+    const recording = voiceBlob || cachedRecording?.blob;
+    const isVoiceRecorded = draft?.voiceMessage && draft.voiceMessage.status === "recorded";
+    const hasVoiceRecording = !!recording || isVoiceRecorded;
 
-    if (durationMs <= 0 || durationMs > 180000) {
-      return {
-        success: false,
-        error: "Voice message duration must be between 1ms and 180000ms.",
-      };
-    }
-  }
-
-  if (recording) {
-    formData.append(
-      "voiceAudio",
-      recording,
-      `voice-message.${getAudioExtension(recording.type)}`
+    console.log(
+      "[PUBLISH_CLIENT] voice recording found/missing",
+      recording ? "found" : "missing",
+      "status:",
+      draft?.voiceMessage?.status
     );
 
-    formData.append(
-      "voiceMetadata",
-      JSON.stringify({
-        mimeType: recording.type,
-        durationMs: draft?.voiceMessage?.durationMs ?? 0,
-        transcript: draft?.voiceMessage?.transcript || undefined,
-      })
-    );
-  }
+    if (isVoiceRecorded && !recording) {
+      console.warn("[PUBLISH_CLIENT] Recorded audio file missing from session cache");
+      return {
+        success: false,
+        error: "Voice recording audio file is missing from session cache. Please re-record your voice note before publishing.",
+      };
+    }
 
-  const res = await fetch("/api/create/publish", {
-    method: "POST",
-    body: formData,
-  });
+    if (hasVoiceRecording || recording) {
+      const mimeType = recording?.type || draft?.voiceMessage?.mimeType || "";
+      const durationMs = draft?.voiceMessage?.durationMs ?? 0;
+      const fileSize = recording?.size || 0;
 
-  const data = await res.json();
+      const isAudioMime =
+        mimeType &&
+        (mimeType.toLowerCase().startsWith("audio/") ||
+          mimeType.toLowerCase().includes("webm") ||
+          mimeType.toLowerCase().includes("ogg") ||
+          mimeType.toLowerCase().includes("wav") ||
+          mimeType.toLowerCase().includes("mp4") ||
+          mimeType.toLowerCase().includes("aac") ||
+          mimeType.toLowerCase().includes("mpeg") ||
+          mimeType.toLowerCase().includes("m4a"));
 
-  if (!res.ok) {
+      if (!isAudioMime) {
+        return {
+          success: false,
+          error: "Invalid voice message MIME type.",
+        };
+      }
+
+      if (recording && (fileSize <= 0 || fileSize > 10485760)) {
+        return {
+          success: false,
+          error: "Voice message file size must be between 1 byte and 10MB.",
+        };
+      }
+
+      if (durationMs <= 0 || durationMs > 180000) {
+        return {
+          success: false,
+          error: "Voice message duration must be between 1ms and 180000ms.",
+        };
+      }
+    }
+
+    if (recording) {
+      const effectiveMimeType = recording.type || draft?.voiceMessage?.mimeType || "audio/webm";
+      const extension = getAudioExtension(effectiveMimeType);
+      const voiceFile =
+        typeof File !== "undefined" && recording instanceof File
+          ? recording
+          : new File([recording], `voice-message.${extension}`, { type: effectiveMimeType });
+
+      formData.append("voiceAudio", voiceFile);
+
+      formData.append(
+        "voiceMetadata",
+        JSON.stringify({
+          mimeType: effectiveMimeType,
+          durationMs: draft?.voiceMessage?.durationMs ?? 0,
+          transcript: draft?.voiceMessage?.transcript || undefined,
+        })
+      );
+    }
+
+    console.log("[PUBLISH_CLIENT] FormData constructed");
+    console.log("[PUBLISH_CLIENT] sending POST");
+
+    const res = await fetch("/api/create/publish", {
+      method: "POST",
+      body: formData,
+    });
+
+    console.log("[PUBLISH_CLIENT] response received", res.status);
+    const data = await res.json();
+    console.log("[PUBLISH_CLIENT] response parsed", data);
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.error || "Failed to publish experience.",
+      };
+    }
+
+    return {
+      success: true,
+      slug: data.slug,
+      shareUrl: data.shareUrl,
+    };
+  } catch (err: any) {
+    console.error("[PUBLISH_CLIENT] Exception during publishExperience:", err);
     return {
       success: false,
-      error: data.error || "Failed to publish experience.",
+      error: err?.message || "Failed to publish experience due to a client-side error.",
     };
   }
-
-  return {
-    success: true,
-    slug: data.slug,
-    shareUrl: data.shareUrl,
-  };
 }
 
 function getAudioExtension(mimeType: string): string {

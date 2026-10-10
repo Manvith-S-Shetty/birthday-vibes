@@ -82,13 +82,17 @@ export function getOrCreateCreatorSessionToken(): string {
   }
 
   const newToken = `cr_sec_${crypto.randomBytes(24).toString("hex")}`;
-  cookieStore.set(CREATOR_COOKIE_NAME, newToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 365 * 24 * 60 * 60, // 1 year
-  });
+  try {
+    cookieStore.set(CREATOR_COOKIE_NAME, newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60, // 1 year
+    });
+  } catch {
+    // Read-only render context fallback (e.g. Server Component render)
+  }
 
   return newToken;
 }

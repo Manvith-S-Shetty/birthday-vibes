@@ -126,8 +126,8 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
   test("2. Optional / Skip Flow — Creator can proceed without recording", async ({ page }) => {
     await page.goto("/create");
 
-    // Click Next ("Security & Lock") without recording
-    const nextBtn = page.getByRole("button", { name: "Security & Lock" });
+    // Click Next ("Interactive Moments") without recording
+    const nextBtn = page.getByRole("button", { name: /Interactive Moments|Security/i });
     await expect(nextBtn).toBeVisible();
     await nextBtn.click();
 
@@ -280,8 +280,8 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
 
     await expect(page.getByText("Voice Note Recorded")).toBeVisible();
 
-    // 2. Navigate away to Step 07 (Security & Lock)
-    await page.getByRole("button", { name: "Security & Lock" }).click();
+    // 2. Navigate away to Step 07 (Interactive Moments)
+    await page.getByRole("button", { name: /Interactive Moments|Security/i }).click();
     await expect(page.getByText("Step 07", { exact: false })).toBeVisible();
 
     // 3. Navigate back to Step 06 (Voice Note)

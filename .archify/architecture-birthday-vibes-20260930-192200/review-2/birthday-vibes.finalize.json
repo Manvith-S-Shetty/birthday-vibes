@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "startedAt": "2026-10-01T08:58:01.513Z",
+  "specification": {
+    "path": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\candidate.json",
+    "sha256": "f5415ed361d7a4b536d93f67d5e925c065463ba0115e305bc194f8fd0530c4de",
+    "bytes": 9997
+  },
+  "artifact": {
+    "path": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\birthday-vibes.html",
+    "sha256": "f4d481e606dc5678d9b645fc9bf6a10f4ddad2a8d476e497ed124b8528877c75",
+    "bytes": 786359
+  },
+  "stages": {
+    "validate": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": null,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "architecture",
+        "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\candidate.json",
+        "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\birthday-vibes.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "deliver",
+        "receiptId": "63301e56-67e4-416d-b67c-4ce4234500b7",
+        "stage": "render",
+        "type": "architecture",
+        "input": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\candidate.json",
+        "output": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\birthday-vibes.html",
+        "error": "Architecture layout validation failed:\n- [clean-flow/edge-through-node] architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" crosses component \"security\" (unrelated to this relationship) on segment 0 [790, 497] -> [945, 497] (2px clearance) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust fromSide/toSide, set route/via, or move the component.\n- [composition/ambiguous-corridor] showcase architecture connections[11] id \"payload-to-security\" \"api_payload\" -> \"security\" shares a 40px corridor with connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" at [830, 497] -> [870, 497] (segments 2 and 0; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.\n- [composition/micro-segment] showcase architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" has a 2px interior segment 1 [945, 497] -> [945, 495] that is below the 8px micro-segment floor — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and move route/via points into a wider corridor or move the component so every turn has room to read.\n- Label \"verifyPin · rateLimit · setAuthCookie\" has only 80px between \"api_unlock\" and \"security\"; it needs at least 204px to stay beside its route — increase that clear gap or place the connected nodes on another readable row, preserving the label.\n- Label \"SELECT pin_hash · pin_salt\" overlaps component \"security\" — adjust labelDx/labelDy/labelSegment or set labelAt.\n  label rect: [878, 476, 135, 14]\n  component \"security\" rect: [870, 460, 150, 60]\n  Suggested fix: set labelAt [945, 534] or set labelDy 48 (below); or set labelAt [945, 452] or set labelDy -34 (above)",
+        "diagnostics": [
+          {
+            "code": "clean-flow/edge-through-node",
+            "severity": "error",
+            "message": "[clean-flow/edge-through-node] architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" crosses component \"security\" (unrelated to this relationship) on segment 0 [790, 497] -> [945, 497] (2px clearance) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust fromSide/toSide, set route/via, or move the component.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 15,
+              "id": "unlock-to-db",
+              "from": "api_unlock",
+              "to": "supabase_db"
+            },
+            "evidence": {
+              "obstacleKind": "component",
+              "obstacleId": "security",
+              "segmentIndex": 0,
+              "from": [
+                790,
+                497
+              ],
+              "to": [
+                945,
+                497
+              ],
+              "clearancePx": 2
+            },
+            "supportedFixes": [
+              "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust fromSide/toSide, set route/via, or move the component"
+            ]
+          },
+          {
+            "code": "composition/ambiguous-corridor",
+            "severity": "error",
+            "message": "[composition/ambiguous-corridor] showcase architecture connections[11] id \"payload-to-security\" \"api_payload\" -> \"security\" shares a 40px corridor with connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" at [830, 497] -> [870, 497] (segments 2 and 0; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 11,
+              "id": "payload-to-security",
+              "from": "api_payload",
+              "to": "security"
+            },
+            "evidence": {
+              "otherRelationship": {
+                "diagramType": "architecture",
+                "collection": "connections",
+                "index": 15,
+                "id": "unlock-to-db",
+                "from": "api_unlock",
+                "to": "supabase_db"
+              },
+              "overlapLengthPx": 40,
+              "minimumPx": 8,
+              "from": [
+                830,
+                497
+              ],
+              "to": [
+                870,
+                497
+              ],
+              "segmentIndex": 2,
+              "otherSegmentIndex": 0
+            },
+            "supportedFixes": [
+              "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+            ]
+          },
+          {
+            "code": "composition/micro-segment",
+            "severity": "error",
+            "message": "[composition/micro-segment] showcase architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" has a 2px interior segment 1 [945, 497] -> [945, 495] that is below the 8px micro-segment floor — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and move route/via points into a wider corridor or move the component so every turn has room to read.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 15,
+              "id": "unlock-to-db",
+              "from": "api_unlock",
+              "to": "supabase_db"
+            },
+            "evidence": {
+              "segmentIndex": 1,
+              "position": "interior",
+              "lengthPx": 2,
+              "minimumPx": 8,
+              "from": [
+                945,
+                497
+              ],
+              "to": [
+                945,
+                495
+              ]
+            },
+            "supportedFixes": [
+              "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and move route/via points into a wider corridor or move the component so every turn has room to read"
+            ]
+          },
+          {
+            "code": "composition/label-gap",
+            "severity": "error",
+            "message": "Label \"verifyPin · rateLimit · setAuthCookie\" has only 80px between \"api_unlock\" and \"security\"; it needs at least 204px to stay beside its route — increase that clear gap or place the connected nodes on another readable row, preserving the label.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "id": "unlock-to-security",
+              "from": "api_unlock",
+              "to": "security"
+            },
+            "evidence": {
+              "clearGapPx": 80,
+              "minimumGapPx": 204,
+              "labelWidthPx": 187.6,
+              "obstacles": [
+                "api_unlock",
+                "security"
+              ]
+            },
+            "supportedFixes": [
+              "increase the clear gap between the connected nodes to at least 204px",
+              "reposition the connected nodes together while preserving the full relationship label"
+            ]
+          },
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Label \"SELECT pin_hash · pin_salt\" overlaps component \"security\" — adjust labelDx/labelDy/labelSegment or set labelAt.\n  label rect: [878, 476, 135, 14]\n  component \"security\" rect: [870, 460, 150, 60]\n  Suggested fix: set labelAt [945, 534] or set labelDy 48 (below); or set labelAt [945, 452] or set labelDy -34 (above)",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          }
+        ],
+        "provenance": "failed",
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      },
+      "execution": "embedded-in-deliver"
+    },
+    "deliver": {
+      "status": "not-run",
+      "execution": "blocked-by-validate"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "clean-flow/edge-through-node",
+      "severity": "error",
+      "message": "[clean-flow/edge-through-node] architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" crosses component \"security\" (unrelated to this relationship) on segment 0 [790, 497] -> [945, 497] (2px clearance) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust fromSide/toSide, set route/via, or move the component.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 15,
+        "id": "unlock-to-db",
+        "from": "api_unlock",
+        "to": "supabase_db"
+      },
+      "evidence": {
+        "obstacleKind": "component",
+        "obstacleId": "security",
+        "segmentIndex": 0,
+        "from": [
+          790,
+          497
+        ],
+        "to": [
+          945,
+          497
+        ],
+        "clearancePx": 2
+      },
+      "supportedFixes": [
+        "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust fromSide/toSide, set route/via, or move the component"
+      ]
+    },
+    {
+      "code": "composition/ambiguous-corridor",
+      "severity": "error",
+      "message": "[composition/ambiguous-corridor] showcase architecture connections[11] id \"payload-to-security\" \"api_payload\" -> \"security\" shares a 40px corridor with connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" at [830, 497] -> [870, 497] (segments 2 and 0; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 11,
+        "id": "payload-to-security",
+        "from": "api_payload",
+        "to": "security"
+      },
+      "evidence": {
+        "otherRelationship": {
+          "diagramType": "architecture",
+          "collection": "connections",
+          "index": 15,
+          "id": "unlock-to-db",
+          "from": "api_unlock",
+          "to": "supabase_db"
+        },
+        "overlapLengthPx": 40,
+        "minimumPx": 8,
+        "from": [
+          830,
+          497
+        ],
+        "to": [
+          870,
+          497
+        ],
+        "segmentIndex": 2,
+        "otherSegmentIndex": 0
+      },
+      "supportedFixes": [
+        "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+      ]
+    },
+    {
+      "code": "composition/micro-segment",
+      "severity": "error",
+      "message": "[composition/micro-segment] showcase architecture connections[15] id \"unlock-to-db\" \"api_unlock\" -> \"supabase_db\" has a 2px interior segment 1 [945, 497] -> [945, 495] that is below the 8px micro-segment floor — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and move route/via points into a wider corridor or move the component so every turn has room to read.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 15,
+        "id": "unlock-to-db",
+        "from": "api_unlock",
+        "to": "supabase_db"
+      },
+      "evidence": {
+        "segmentIndex": 1,
+        "position": "interior",
+        "lengthPx": 2,
+        "minimumPx": 8,
+        "from": [
+          945,
+          497
+        ],
+        "to": [
+          945,
+          495
+        ]
+      },
+      "supportedFixes": [
+        "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and move route/via points into a wider corridor or move the component so every turn has room to read"
+      ]
+    },
+    {
+      "code": "composition/label-gap",
+      "severity": "error",
+      "message": "Label \"verifyPin · rateLimit · setAuthCookie\" has only 80px between \"api_unlock\" and \"security\"; it needs at least 204px to stay beside its route — increase that clear gap or place the connected nodes on another readable row, preserving the label.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "id": "unlock-to-security",
+        "from": "api_unlock",
+        "to": "security"
+      },
+      "evidence": {
+        "clearGapPx": 80,
+        "minimumGapPx": 204,
+        "labelWidthPx": 187.6,
+        "obstacles": [
+          "api_unlock",
+          "security"
+        ]
+      },
+      "supportedFixes": [
+        "increase the clear gap between the connected nodes to at least 204px",
+        "reposition the connected nodes together while preserving the full relationship label"
+      ]
+    },
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Label \"SELECT pin_hash · pin_salt\" overlaps component \"security\" — adjust labelDx/labelDy/labelSegment or set labelAt.\n  label rect: [878, 476, 135, 14]\n  component \"security\" rect: [870, 460, 150, 60]\n  Suggested fix: set labelAt [945, 534] or set labelDy 48 (below); or set labelAt [945, 452] or set labelDy -34 (above)",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    }
+  ],
+  "evidence": {
+    "receipt": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\review-2\\birthday-vibes.finalize.json",
+    "summaryReceipt": "C:\\Users\\Manvith S shetty\\Downloads\\Birthday-vibes\\.archify\\architecture-birthday-vibes-20260930-192200\\review-2\\birthday-vibes.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "validate",
+  "finishedAt": "2026-10-01T08:58:03.759Z",
+  "durationMs": 2246,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-30T14:23:19.639Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

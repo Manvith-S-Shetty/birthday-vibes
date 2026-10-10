@@ -17,6 +17,7 @@ import { StepMessage } from "./steps/StepMessage";
 import { StepMusic } from "./steps/StepMusic";
 import { StepSecurity } from "./steps/StepSecurity";
 import { StepVoice } from "./steps/StepVoice";
+import { StepMoments } from "./steps/StepMoments";
 import { StepPreview } from "./steps/StepPreview";
 import { StepPublishPlaceholder } from "./steps/StepPublishPlaceholder";
 
@@ -32,9 +33,10 @@ const STEPS: { id: CreatorStep; label: string; number: string }[] = [
   { id: "message", label: "Message", number: "04" },
   { id: "music", label: "Music", number: "05" },
   { id: "voice", label: "Voice Note", number: "06" },
-  { id: "security", label: "Security", number: "07" },
-  { id: "preview", label: "Preview", number: "08" },
-  { id: "publish", label: "Publish", number: "09" },
+  { id: "moments", label: "Moments", number: "07" },
+  { id: "security", label: "Security", number: "08" },
+  { id: "preview", label: "Preview", number: "09" },
+  { id: "publish", label: "Publish", number: "10" },
 ];
 
 export function CreatorShell({ draftId }: { draftId?: string }) {
@@ -137,6 +139,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
     musicTitle: draft.musicTitle,
     musicUrl: draft.musicUrl,
     voiceMessage: livePreviewVoice,
+    moments: draft.moments,
     isPinProtected: draft.isPinProtected,
     pin: draft.pin,
     createdAt: draft.createdAt,
@@ -193,9 +196,9 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
         </header>
 
         {/* Main Studio Body Grid (Desktop: Form + Phone Preview) */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 max-w-7xl w-full mx-auto p-4 sm:p-8 gap-8 items-start">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8 gap-4 sm:gap-6 lg:gap-8 items-start">
           {/* Left / Main Creation Stage Area (Cols 7 on Desktop) */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-4 sm:space-y-6 w-full">
             {/* Step Progress Bar for Mobile/Tablet */}
             <div className="lg:hidden flex items-center justify-between text-xs text-[var(--theme-text-secondary)] border-b border-white/5 pb-3">
               <span>
@@ -207,7 +210,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
               <span>{Math.round(((currentStepIndex + 1) / STEPS.length) * 100)}%</span>
             </div>
 
-            <div className="min-h-[480px]">
+            <div className="w-full">
               {draft.currentStep === "recipient" && (
                 <StepRecipient draft={draft} onUpdate={handleUpdateDraft} onNext={handleNextStep} />
               )}
@@ -252,6 +255,14 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
                   skipCountdownForTesting={process.env.NODE_ENV === "test"}
                 />
               )}
+              {draft.currentStep === "moments" && (
+                <StepMoments
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
+              )}
               {draft.currentStep === "security" && (
                 <StepSecurity
                   draft={draft}
@@ -274,7 +285,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
           </div>
 
           {/* Right Desktop Phone Preview Frame (Cols 5 on Desktop) */}
-          <div className="hidden lg:block lg:col-span-5 sticky top-24">
+          <div className="hidden lg:block lg:col-span-5 sticky top-20">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-[var(--theme-text-secondary)]">
                 <span className="uppercase tracking-widest font-sans font-medium text-[var(--theme-text-accent)]">
@@ -284,7 +295,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
               </div>
 
               {/* Realistic Smartphone Chassis Frame */}
-              <div className="relative mx-auto w-full max-w-[360px] h-[640px] rounded-[40px] border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
+              <div className="relative mx-auto w-full max-w-[360px] h-[calc(100vh-9rem)] max-h-[620px] min-h-[420px] rounded-[36px] sm:rounded-[40px] border-[5px] sm:border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
                 {/* Notch */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[var(--theme-border-strong)] rounded-b-xl z-20" />
 

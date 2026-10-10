@@ -10,13 +10,29 @@ import { LockedCoverScene } from "./scenes/LockedCoverScene";
 import { CinematicIntroScene } from "./scenes/CinematicIntroScene";
 import { MemoryWallScene } from "./scenes/MemoryWallScene";
 import { LetterScene } from "./scenes/LetterScene";
+import { MysteryGiftScene } from "./scenes/MysteryGiftScene";
+import { MemoryQuizScene } from "./scenes/MemoryQuizScene";
+import { BirthdayCouponScene } from "./scenes/BirthdayCouponScene";
+import { CountdownScene } from "./scenes/CountdownScene";
+import { WishMomentScene } from "./scenes/WishMomentScene";
 import { CakeCandlesScene } from "./scenes/CakeCandlesScene";
 import { FinaleScene } from "./scenes/FinaleScene";
 
 import { Volume2, VolumeX, Music, Mic, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-export type RecipientSceneId = "locked" | "intro" | "memories" | "letter" | "cake" | "finale";
+export type RecipientSceneId =
+  | "locked"
+  | "intro"
+  | "memories"
+  | "letter"
+  | "mystery_gift"
+  | "memory_quiz"
+  | "birthday_coupon"
+  | "countdown"
+  | "wish_moment"
+  | "cake"
+  | "finale";
 
 interface ExperienceRendererProps {
   data: ExperienceData;
@@ -40,6 +56,58 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
   // Voice message control state
   const [isPlayingVoice, setIsPlayingVoice] = useState<boolean>(false);
   const [voiceAudioElement, setVoiceAudioElement] = useState<HTMLAudioElement | null>(null);
+
+  // Dynamic active scene progression builder
+  const getActiveSceneSequence = useCallback((): RecipientSceneId[] => {
+    const sequence: RecipientSceneId[] = ["intro", "memories", "letter"];
+
+    if (Array.isArray(data.moments)) {
+      const activeMoments = [...data.moments]
+        .filter((m) => m && m.enabled !== false)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      for (const moment of activeMoments) {
+        if (moment.momentType === "mystery_gift") {
+          sequence.push("mystery_gift");
+        } else if (moment.momentType === "memory_quiz") {
+          sequence.push("memory_quiz");
+        } else if (moment.momentType === "birthday_coupon") {
+          sequence.push("birthday_coupon");
+        } else if (moment.momentType === "countdown") {
+          sequence.push("countdown");
+        } else if (moment.momentType === "wish_moment") {
+          sequence.push("wish_moment");
+        }
+      }
+    }
+
+    sequence.push("cake", "finale");
+    return sequence;
+  }, [data.moments]);
+
+  const getNextSceneId = useCallback(
+    (current: RecipientSceneId): RecipientSceneId => {
+      const seq = getActiveSceneSequence();
+      const idx = seq.indexOf(current);
+      if (idx !== -1 && idx < seq.length - 1) {
+        return seq[idx + 1];
+      }
+      return "finale";
+    },
+    [getActiveSceneSequence]
+  );
+
+  const getPrevSceneId = useCallback(
+    (current: RecipientSceneId): RecipientSceneId => {
+      const seq = getActiveSceneSequence();
+      const idx = seq.indexOf(current);
+      if (idx > 0) {
+        return seq[idx - 1];
+      }
+      return "intro";
+    },
+    [getActiveSceneSequence]
+  );
 
   // Live Phone Preview real-time data sync (only when in preview mode)
   useEffect(() => {
@@ -242,26 +310,56 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
         {!isUnlocked || activeSceneId === "locked" ? (
           <LockedCoverScene data={data} onUnlock={handleUnlockSuccess} />
         ) : activeSceneId === "intro" ? (
-          <CinematicIntroScene data={data} onNext={() => transitionToScene("memories")} />
+          <CinematicIntroScene data={data} onNext={() => transitionToScene(getNextSceneId("intro"))} />
         ) : activeSceneId === "memories" ? (
           <MemoryWallScene
             data={data}
-            onNext={() => transitionToScene("letter")}
-            onPrev={() => transitionToScene("intro")}
+            onNext={() => transitionToScene(getNextSceneId("memories"))}
+            onPrev={() => transitionToScene(getPrevSceneId("memories"))}
           />
         ) : activeSceneId === "letter" ? (
           <LetterScene
             data={data}
-            onNext={() => transitionToScene("cake")}
-            onPrev={() => transitionToScene("memories")}
+            onNext={() => transitionToScene(getNextSceneId("letter"))}
+            onPrev={() => transitionToScene(getPrevSceneId("letter"))}
             isPlayingVoice={isPlayingVoice}
             onToggleVoice={handleToggleVoice}
+          />
+        ) : activeSceneId === "mystery_gift" ? (
+          <MysteryGiftScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("mystery_gift"))}
+            onPrev={() => transitionToScene(getPrevSceneId("mystery_gift"))}
+          />
+        ) : activeSceneId === "memory_quiz" ? (
+          <MemoryQuizScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("memory_quiz"))}
+            onPrev={() => transitionToScene(getPrevSceneId("memory_quiz"))}
+          />
+        ) : activeSceneId === "birthday_coupon" ? (
+          <BirthdayCouponScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("birthday_coupon"))}
+            onPrev={() => transitionToScene(getPrevSceneId("birthday_coupon"))}
+          />
+        ) : activeSceneId === "countdown" ? (
+          <CountdownScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("countdown"))}
+            onPrev={() => transitionToScene(getPrevSceneId("countdown"))}
+          />
+        ) : activeSceneId === "wish_moment" ? (
+          <WishMomentScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("wish_moment"))}
+            onPrev={() => transitionToScene(getPrevSceneId("wish_moment"))}
           />
         ) : activeSceneId === "cake" ? (
           <CakeCandlesScene
             data={data}
-            onNext={() => transitionToScene("finale")}
-            onPrev={() => transitionToScene("letter")}
+            onNext={() => transitionToScene(getNextSceneId("cake"))}
+            onPrev={() => transitionToScene(getPrevSceneId("cake"))}
           />
         ) : (
           <FinaleScene data={data} onReplay={handleReplay} />

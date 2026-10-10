@@ -1,5 +1,5 @@
 import { ThemeId } from "./theme";
-import { MediaItem } from "./experience";
+import { MediaItem, InteractiveMomentData } from "./experience";
 
 export type CreatorStep =
   | "recipient"
@@ -8,6 +8,7 @@ export type CreatorStep =
   | "message"
   | "music"
   | "voice"
+  | "moments"
   | "security"
   | "preview"
   | "publish";
@@ -31,6 +32,7 @@ export interface BirthdayDraft {
   musicTitle?: string;
   musicUrl?: string;
   voiceMessage?: VoiceMessageDraftState;
+  moments?: InteractiveMomentData[];
   pin?: string;
   isPinProtected: boolean;
   currentStep: CreatorStep;

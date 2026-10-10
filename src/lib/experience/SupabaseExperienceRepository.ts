@@ -1,4 +1,11 @@
-import { ExperienceData, MediaItem, VoiceMessageData } from "@/types/experience";
+import {
+  ExperienceData,
+  MediaItem,
+  VoiceMessageData,
+  InteractiveMomentData,
+  MomentType,
+  MomentConfig,
+} from "@/types/experience";
 import { SeedExperienceRepository, seedExperienceRepository } from "./SeedExperienceRepository";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
@@ -142,6 +149,22 @@ export class SupabaseExperienceRepository {
             }
           }
 
+          // Fetch interactive moments belonging strictly to exp.id
+          const { data: momentRows } = await (supabaseAdminClient as any)
+            .from("experience_moments")
+            .select("*")
+            .eq("experience_id", exp.id)
+            .eq("enabled", true)
+            .order("sort_order", { ascending: true });
+
+          const moments: InteractiveMomentData[] = (momentRows || []).map((m: any) => ({
+            id: m.id,
+            momentType: m.moment_type as MomentType,
+            config: (m.config_json || {}) as MomentConfig,
+            sortOrder: m.sort_order,
+            enabled: m.enabled ?? true,
+          }));
+
           const fullExperience: ExperienceData = {
             id: exp.id,
             slug: exp.slug || slug,
@@ -153,6 +176,7 @@ export class SupabaseExperienceRepository {
             musicTitle: musicRows?.title || undefined,
             musicUrl: musicRows?.source_url || undefined,
             voiceMessage,
+            moments,
             isPinProtected: exp.is_pin_protected,
             pin: undefined,
             createdAt: exp.created_at,
