@@ -84,9 +84,12 @@ const MOMENT_DEFINITIONS: MomentDefinition[] = [
     defaultConfig: {
       title: "Spin for a Birthday Surprise",
       options: [
-        { id: "r_1", label: "Free Coffee", description: "On me next time we meet!" },
+        { id: "r_1", label: "Free Coffee & Donut", description: "On me next time we meet!" },
         { id: "r_2", label: "Movie Night Pick", description: "You get total control of the remote." },
-        { id: "r_3", label: "Big Hug", description: "Redeemable anytime." },
+        { id: "r_3", label: "Big Birthday Hug", description: "Redeemable anytime." },
+        { id: "r_4", label: "Home Cooked Dinner", description: "Your favorite meal, cooked by me." },
+        { id: "r_5", label: "Weekend Getaway", description: "A fun day trip together." },
+        { id: "r_6", label: "Wildcard Surprise", description: "Anything you wish for!" },
       ],
     } as BirthdayRouletteConfig,
   },
@@ -159,10 +162,14 @@ export function StepMoments({ draft, onUpdate, onNext, onPrev }: StepMomentsProp
         m.momentType === def.type ? { ...m, enabled: !m.enabled } : m
       );
     } else {
+      let initialConfig = { ...def.defaultConfig };
+      if (def.type === "countdown" && draft.birthdayDate) {
+        initialConfig.targetDate = draft.birthdayDate;
+      }
       const newMoment: InteractiveMomentData = {
         id: `mom_${def.type}_${Date.now()}`,
         momentType: def.type,
-        config: def.defaultConfig,
+        config: initialConfig,
         sortOrder: currentMoments.length + 1,
         enabled: true,
       };

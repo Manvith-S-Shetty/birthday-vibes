@@ -50,5 +50,7 @@ next-env.d.ts
 # supabase local temp
 /supabase/.temp/
 
-/docs
-
+# docs screenshots & local agents
+/docs/screenshots/
+/.agent/
+/.agents/

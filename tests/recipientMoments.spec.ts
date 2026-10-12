@@ -8,7 +8,7 @@ test.describe("V2-D Loop 3 — Recipient Interactive Moments Playwright Spec", (
     await expect(page.getByText("Taylor").first()).toBeVisible();
   });
 
-  test("1. Progresses through Intro -> Memories -> Letter -> Mystery Gift -> Memory Quiz -> Coupon -> Countdown -> Wish Moment -> Cake", async ({ page }) => {
+  test("1. Progresses through Intro -> Memories -> Letter -> Mystery Gift -> Memory Quiz -> Roulette -> Hidden Message -> Coupon -> Countdown -> Wish Moment -> Cake", async ({ page }) => {
     // 1. Intro -> click Explore Memories
     await page.getByRole("button", { name: /Explore Memories/i }).click();
 
@@ -22,10 +22,10 @@ test.describe("V2-D Loop 3 — Recipient Interactive Moments Playwright Spec", (
 
     // 4. Mystery Gift Scene
     await expect(page.getByRole("heading", { name: "Taylor's Mystery Gift" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Unwrap Special Gift/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Unwrap Special Gift/i }).first()).toBeVisible();
 
     // Click Unwrap -> reveals surprise gift message
-    await page.getByRole("button", { name: /Unwrap Special Gift/i }).click();
+    await page.getByRole("button", { name: /Unwrap Special Gift/i }).first().click();
     await expect(page.getByText("Front row tickets to your favorite concert!")).toBeVisible();
 
     // Click Continue -> moves to Memory Quiz Scene
@@ -41,29 +41,44 @@ test.describe("V2-D Loop 3 — Recipient Interactive Moments Playwright Spec", (
     await expect(page.getByText("That's Spot On! 🎉")).toBeVisible();
     await expect(page.getByText("That trip along the coast was unforgettable!")).toBeVisible();
 
+    // Click Continue -> moves to Birthday Roulette Scene
+    await page.getByRole("button", { name: /Continue/i }).click();
+
+    // 6. Birthday Roulette Scene
+    await expect(page.getByRole("heading", { name: "Spin for a Birthday Surprise" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Spin Wheel/i })).toBeVisible();
+
+    // Click Continue -> moves to Hidden Message Scene
+    await page.getByRole("button", { name: /Continue/i }).click();
+
+    // 7. Hidden Message Scene
+    await expect(page.getByRole("heading", { name: "Hidden Secret Note" })).toBeVisible();
+    await page.getByRole("button", { name: /Reveal Secret Note/i }).first().click();
+    await expect(page.getByText("You mean the absolute world to me. Happy Birthday!")).toBeVisible();
+
     // Click Continue -> moves to Birthday Coupon Scene
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    // 6. Birthday Coupon Scene
+    // 8. Birthday Coupon Scene
     await expect(page.getByRole("heading", { name: "Exclusive Coupon" })).toBeVisible();
     await expect(page.getByText("VIP Spa Weekend")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Claim Gift Voucher/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Claim Gift Voucher/i }).first()).toBeVisible();
 
     // Click Claim -> reveals code
-    await page.getByRole("button", { name: /Claim Gift Voucher/i }).click();
+    await page.getByRole("button", { name: /Claim Gift Voucher/i }).first().click();
     await expect(page.getByText("VIP-SPA-2026")).toBeVisible();
 
     // Click Continue -> moves to Countdown Scene
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    // 7. Countdown Scene
+    // 9. Countdown Scene
     await expect(page.getByText("Birthday Countdown")).toBeVisible();
     await expect(page.getByText("The countdown to Taylor's big day is ticking!")).toBeVisible();
 
     // Click Continue -> moves to Wish Moment Scene
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    // 8. Wish Moment Scene
+    // 10. Wish Moment Scene
     await expect(page.getByText("Wish Sealing Moment")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Make a Birthday Wish" })).toBeVisible();
     await page.getByRole("button", { name: /Seal Your Wish/i }).click();
@@ -72,7 +87,7 @@ test.describe("V2-D Loop 3 — Recipient Interactive Moments Playwright Spec", (
     // Click Continue -> moves to Cake Candles Scene
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    // 9. Cake Candles Scene
+    // 11. Cake Candles Scene
     await expect(page.getByRole("heading", { name: "Blow Out the Candles" })).toBeVisible();
   });
 

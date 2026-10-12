@@ -15,92 +15,110 @@ interface StepPublishPlaceholderProps {
   onStartNew: () => void;
 }
 
+const PUBLISHED_CACHE = new Map<string, { slug: string; shareUrl: string }>();
+const IN_FLIGHT_PUBLISH = new Map<string, Promise<{ success: boolean; slug?: string; shareUrl?: string; error?: string }>>();
+
 export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublishPlaceholderProps) {
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishResult, setPublishResult] = useState<{ slug?: string; shareUrl?: string } | null>(null);
+  const [isPublishing, setIsPublishing] = useState(() => !PUBLISHED_CACHE.has(draft.id));
+  const [publishResult, setPublishResult] = useState<{ slug?: string; shareUrl?: string } | null>(
+    () => PUBLISHED_CACHE.get(draft.id) || null
+  );
   const [error, setError] = useState<string | null>(null);
 
-  const publishedDraftIdRef = React.useRef<string | null>(null);
+  const isMountedRef = React.useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    if (publishedDraftIdRef.current === draft.id) {
-      console.log("[PUBLISH_DIAG] Skipping duplicate publish call for draft:", draft.id);
+    if (PUBLISHED_CACHE.has(draft.id)) {
+      setPublishResult(PUBLISHED_CACHE.get(draft.id)!);
+      setIsPublishing(false);
       return;
     }
-    publishedDraftIdRef.current = draft.id;
 
     async function handlePublish() {
-      console.log("[PUBLISH_DIAG] StepPublishPlaceholder initiating publish for draft ID:", draft.id);
       setIsPublishing(true);
       setError(null);
 
       try {
-        const voiceRecording = VoiceRecordingCache.get(draft.id);
-        const res = await publishExperience(draft, voiceRecording?.blob);
-        console.log("[PUBLISH_DIAG] StepPublishPlaceholder publish response received:", {
-          success: res.success,
-          hasSlug: !!res.slug,
-          hasShareUrl: !!res.shareUrl,
-          error: res.error,
-        });
+        let publishPromise = IN_FLIGHT_PUBLISH.get(draft.id);
+        if (!publishPromise) {
+          const voiceRecording = VoiceRecordingCache.get(draft.id);
+          publishPromise = publishExperience(draft, voiceRecording?.blob);
+          IN_FLIGHT_PUBLISH.set(draft.id, publishPromise);
+        }
 
-        if (isMounted) {
-          if (res.success && res.slug && res.shareUrl) {
-            setPublishResult({ slug: res.slug, shareUrl: res.shareUrl });
-          } else {
-            console.error("[PUBLISH_DIAG] Publish returned error or missing fields:", res.error);
+        const res = await publishPromise;
+
+        if (res.success && res.slug && res.shareUrl) {
+          const cached = { slug: res.slug, shareUrl: res.shareUrl };
+          PUBLISHED_CACHE.set(draft.id, cached);
+          if (isMountedRef.current) {
+            setPublishResult(cached);
+          }
+        } else {
+          console.error("[PUBLISH_DIAG] Publish returned error:", res.error);
+          if (isMountedRef.current) {
             setError(res.error || "Failed to publish experience. Please try again.");
           }
         }
       } catch (err: any) {
         console.error("[PUBLISH_DIAG] Exception caught in StepPublishPlaceholder:", err);
-        if (isMounted) {
+        if (isMountedRef.current) {
           setError(err?.message || "Failed to publish experience. Please try again.");
         }
       } finally {
-        if (isMounted) {
+        IN_FLIGHT_PUBLISH.delete(draft.id);
+        if (isMountedRef.current) {
           setIsPublishing(false);
         }
       }
     }
 
     handlePublish();
-
-    return () => {
-      isMounted = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
   const handleRetry = () => {
     console.log("[PUBLISH_DIAG] Manual retry requested for draft ID:", draft.id);
-    publishedDraftIdRef.current = draft.id;
+    IN_FLIGHT_PUBLISH.delete(draft.id);
+    PUBLISHED_CACHE.delete(draft.id);
     setError(null);
     setIsPublishing(true);
 
     const voiceRecording = VoiceRecordingCache.get(draft.id);
-    publishExperience(draft, voiceRecording?.blob)
+    const retryPromise = publishExperience(draft, voiceRecording?.blob);
+    IN_FLIGHT_PUBLISH.set(draft.id, retryPromise);
+
+    retryPromise
       .then((res) => {
-        console.log("[PUBLISH_DIAG] Retry publish response received:", {
-          success: res.success,
-          hasSlug: !!res.slug,
-          hasShareUrl: !!res.shareUrl,
-          error: res.error,
-        });
         if (res.success && res.slug && res.shareUrl) {
-          setPublishResult({ slug: res.slug, shareUrl: res.shareUrl });
+          const cached = { slug: res.slug, shareUrl: res.shareUrl };
+          PUBLISHED_CACHE.set(draft.id, cached);
+          if (isMountedRef.current) {
+            setPublishResult(cached);
+          }
         } else {
-          setError(res.error || "Failed to publish experience. Please try again.");
+          if (isMountedRef.current) {
+            setError(res.error || "Failed to publish experience. Please try again.");
+          }
         }
       })
       .catch((err: any) => {
         console.error("[PUBLISH_DIAG] Retry exception caught:", err);
-        setError(err?.message || "Failed to publish experience. Please try again.");
+        if (isMountedRef.current) {
+          setError(err?.message || "Failed to publish experience. Please try again.");
+        }
       })
       .finally(() => {
-        setIsPublishing(false);
+        IN_FLIGHT_PUBLISH.delete(draft.id);
+        if (isMountedRef.current) {
+          setIsPublishing(false);
+        }
       });
   };
 

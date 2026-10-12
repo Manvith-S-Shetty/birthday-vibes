@@ -144,26 +144,12 @@ export async function POST(request: Request) {
   }
 
   // 3. Voice Message Metadata & Binary Validation
-  const hasVoiceRecording =
-    !!voiceAudio ||
-    (draft.voiceMessage && draft.voiceMessage.status === "recorded");
+  const voiceMimeType = (voiceMetadata?.mimeType || voiceAudio?.type || draft.voiceMessage?.mimeType || "").trim();
+  const voiceDurationMs = voiceMetadata?.durationMs ?? draft.voiceMessage?.durationMs ?? 0;
+  const voiceFileSize = voiceAudio?.size ?? 0;
+  const voiceTranscript = voiceMetadata?.transcript || draft.voiceMessage?.transcript || null;
 
-  const voiceMimeType =
-    voiceAudio?.type ||
-    voiceMetadata?.mimeType ||
-    draft.voiceMessage?.mimeType ||
-    "";
-  const voiceDurationMs =
-    voiceMetadata?.durationMs ??
-    draft.voiceMessage?.durationMs ??
-    0;
-  const voiceTranscript =
-    voiceMetadata?.transcript ||
-    draft.voiceMessage?.transcript ||
-    null;
-  const voiceFileSize = voiceAudio?.size || 0;
-
-  if (hasVoiceRecording || voiceAudio) {
+  if (voiceAudio) {
     const isAudioMime =
       voiceMimeType &&
       (voiceMimeType.toLowerCase().startsWith("audio/") ||
@@ -183,7 +169,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (voiceFileSize <= 0 || voiceFileSize > 10485760) {
+    if (voiceAudio.size <= 0 || voiceAudio.size > 10485760) {
       console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
         { error: "Voice message file size must be between 1 byte and 10MB." },
@@ -335,7 +321,7 @@ export async function POST(request: Request) {
       })();
 
       const voiceTask = (async () => {
-        if (hasVoiceRecording && voiceAudio) {
+        if (voiceAudio) {
           console.time("[PUBLISH_TIMING] voice_persistence");
           const ext = getAudioExtensionFromMime(voiceMimeType);
           const storagePath = `${exp.id}/voice-message.${ext}`;
@@ -406,7 +392,7 @@ export async function POST(request: Request) {
           if (voiceDbError) throw voiceDbError;
           console.timeEnd("[PUBLISH_TIMING] voice_db_upsert");
           console.timeEnd("[PUBLISH_TIMING] voice_persistence");
-        } else if (draft.voiceMessage?.status === "none" || (!hasVoiceRecording && !voiceAudio)) {
+        } else if (!voiceAudio) {
           const { data: existingVoice } = await (supabaseAdminClient as any)
             .from("voice_messages")
             .select("storage_path")
@@ -474,11 +460,11 @@ export async function POST(request: Request) {
       // Run all independent persistence steps concurrently
       await Promise.all([mediaTask, musicTask, voiceTask, momentsTask]);
       console.timeEnd("[PUBLISH_TIMING] total_supabase_pipeline");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Supabase publish error:", e);
       console.timeEnd("[PUBLISH_TIMING] total_publish_route");
       return NextResponse.json(
-        { error: "Failed to persist experience to database. Please try again." },
+        { error: e?.message || e?.details || "Failed to persist experience to database. Please try again." },
         { status: 500 }
       );
     }

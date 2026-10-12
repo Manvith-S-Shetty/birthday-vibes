@@ -197,8 +197,8 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
 
         {/* Main Studio Body Grid (Desktop: Form + Phone Preview) */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8 gap-4 sm:gap-6 lg:gap-8 items-start">
-          {/* Left / Main Creation Stage Area (Cols 7 on Desktop) */}
-          <div className="lg:col-span-7 space-y-4 sm:space-y-6 w-full">
+          {/* Left / Main Creation Stage Area */}
+          <div className={cn("space-y-4 sm:space-y-6 w-full", (draft.currentStep === "preview" || draft.currentStep === "publish") ? "lg:col-span-12" : "lg:col-span-7")}>
             {/* Step Progress Bar for Mobile/Tablet */}
             <div className="lg:hidden flex items-center justify-between text-xs text-[var(--theme-text-secondary)] border-b border-white/5 pb-3">
               <span>
@@ -285,26 +285,28 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
           </div>
 
           {/* Right Desktop Phone Preview Frame (Cols 5 on Desktop) */}
-          <div className="hidden lg:block lg:col-span-5 sticky top-20">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-[var(--theme-text-secondary)]">
-                <span className="uppercase tracking-widest font-sans font-medium text-[var(--theme-text-accent)]">
-                  Live Phone Preview
-                </span>
-                <span className="text-[10px] opacity-70">Real-time Draft Sync</span>
-              </div>
+          {draft.currentStep !== "preview" && draft.currentStep !== "publish" && (
+            <div className="hidden lg:block lg:col-span-5 sticky top-20">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-[var(--theme-text-secondary)]">
+                  <span className="uppercase tracking-widest font-sans font-medium text-[var(--theme-text-accent)]">
+                    Live Phone Preview
+                  </span>
+                  <span className="text-[10px] opacity-70">Real-time Draft Sync</span>
+                </div>
 
-              {/* Realistic Smartphone Chassis Frame */}
-              <div className="relative mx-auto w-full max-w-[360px] h-[calc(100vh-9rem)] max-h-[620px] min-h-[420px] rounded-[36px] sm:rounded-[40px] border-[5px] sm:border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
-                {/* Notch */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[var(--theme-border-strong)] rounded-b-xl z-20" />
+                {/* Realistic Smartphone Chassis Frame */}
+                <div className="relative mx-auto w-full max-w-[360px] h-[calc(100vh-9rem)] max-h-[620px] min-h-[420px] rounded-[36px] sm:rounded-[40px] border-[5px] sm:border-[6px] border-[var(--theme-border-strong)] bg-black overflow-hidden shadow-2xl box-glow-sm">
+                  {/* Notch */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[var(--theme-border-strong)] rounded-b-xl z-20" />
 
-                <div className="w-full h-full overflow-y-auto">
-                  <ExperienceRenderer data={livePreviewData} isPreview />
+                  <div className="w-full h-full overflow-y-auto">
+                    <ExperienceRenderer data={livePreviewData} isPreview />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Mobile Fullscreen Preview Sheet Modal */}

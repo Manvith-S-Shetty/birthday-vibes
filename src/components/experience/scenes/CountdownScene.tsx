@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Clock3,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -28,7 +29,6 @@ interface CountdownParts {
 
 function getCountdownParts(targetTime: number): CountdownParts {
   const remaining = Math.max(0, targetTime - Date.now());
-
   const totalSeconds = Math.floor(remaining / 1000);
 
   return {
@@ -39,24 +39,21 @@ function getCountdownParts(targetTime: number): CountdownParts {
   };
 }
 
-export function CountdownScene({
-  data,
-  onNext,
-  onPrev,
-}: CountdownSceneProps) {
+export function CountdownScene({ data, onNext, onPrev }: CountdownSceneProps) {
   const countdownMoment = data.moments?.find(
-    (moment) =>
-      moment.momentType === "countdown" && moment.enabled !== false
+    (moment) => moment.momentType === "countdown" && moment.enabled !== false
   );
 
   const config = (countdownMoment?.config || {}) as CountdownConfig;
 
-  const targetDate = config.targetDate;
+  // Use explicit config targetDate, or fallback to experience birthdayDate
+  const rawTargetDate = config.targetDate || data.birthdayDate;
 
   const targetTime = useMemo(() => {
-    const parsed = new Date(targetDate).getTime();
+    if (!rawTargetDate) return null;
+    const parsed = new Date(rawTargetDate).getTime();
     return Number.isNaN(parsed) ? null : parsed;
-  }, [targetDate]);
+  }, [rawTargetDate]);
 
   const [countdown, setCountdown] = useState<CountdownParts>(() =>
     targetTime
@@ -72,36 +69,31 @@ export function CountdownScene({
     };
 
     updateCountdown();
-
     const interval = window.setInterval(updateCountdown, 1000);
 
     return () => window.clearInterval(interval);
   }, [targetTime]);
 
   const status = !targetTime
-    ? "invalid"
+    ? "missing_date"
     : Date.now() < targetTime
-      ? "before"
-      : Date.now() < targetTime + 24 * 60 * 60 * 1000
-        ? "birthday"
-        : "after";
+    ? "before"
+    : Date.now() < targetTime + 24 * 60 * 60 * 1000
+    ? "birthday"
+    : "after";
 
   const message =
     status === "before"
-      ? config.preBirthdayMessage ||
-        "Something beautiful is waiting for your birthday..."
+      ? config.preBirthdayMessage || "Something beautiful is waiting for your birthday..."
       : status === "birthday"
-        ? config.onBirthdayMessage ||
-          "Happy Birthday! Today is your special day."
-        : config.postBirthdayMessage ||
-          "The birthday may be over, but the memories continue.";
+      ? config.onBirthdayMessage || "Happy Birthday! Today is your special day."
+      : config.postBirthdayMessage || "The birthday may be over, but the memories continue.";
 
   const formattedDate = targetTime
     ? new Intl.DateTimeFormat(undefined, {
         dateStyle: "long",
-        timeStyle: "short",
       }).format(targetTime)
-    : "Birthday date unavailable";
+    : "Date Not Specified";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between p-4 sm:p-8 space-y-8 animate-fade-in max-w-2xl mx-auto text-center">
@@ -110,83 +102,105 @@ export function CountdownScene({
         <Eyebrow>Birthday Countdown</Eyebrow>
 
         <Heading className="text-3xl sm:text-4xl">
-          {status === "birthday"
+          {status === "missing_date"
+            ? "Target Birthday Date Required"
+            : status === "birthday"
             ? "It's Your Birthday!"
             : status === "after"
-              ? "The Celebration Continues"
-              : "Something Special Is Coming"}
+            ? "The Celebration Continues"
+            : "Something Special Is Coming"}
         </Heading>
 
-        <Body>{message}</Body>
+        <Body>
+          {status === "missing_date"
+            ? "Please set a target birthday date in Creator Studio to display live countdown."
+            : message}
+        </Body>
       </div>
 
-      {/* Countdown Card */}
+      {/* Main Card */}
       <div className="w-full flex-1 flex items-center justify-center py-6">
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className="w-full max-w-md rounded-3xl border border-[var(--theme-border-strong)] bg-[var(--theme-bg-card)] p-6 sm:p-8 shadow-2xl box-glow-md"
         >
-          <div className="flex items-center justify-center gap-2 text-xs font-serif text-[var(--theme-text-accent)] uppercase tracking-widest font-semibold mb-6">
-            <CalendarDays className="w-4 h-4" />
-            <span>{formattedDate}</span>
-          </div>
-
-          {status === "before" && targetTime ? (
-            <>
-              <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                {[
-                  ["Days", countdown.days],
-                  ["Hours", countdown.hours],
-                  ["Minutes", countdown.minutes],
-                  ["Seconds", countdown.seconds],
-                ].map(([label, value]) => (
-                  <motion.div
-                    key={String(label)}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4"
-                    animate={{ scale: label === "Seconds" ? [1, 1.03, 1] : 1 }}
-                    transition={
-                      label === "Seconds"
-                        ? { duration: 1, repeat: Infinity }
-                        : undefined
-                    }
-                  >
-                    <div className="font-serif text-2xl sm:text-3xl font-bold text-[var(--theme-text-primary)]">
-                      {String(value).padStart(2, "0")}
-                    </div>
-
-                    <div className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-widest text-[var(--theme-text-secondary)]">
-                      {label}
-                    </div>
-                  </motion.div>
-                ))}
+          {status === "missing_date" ? (
+            <div className="py-8 space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <AlertTriangle className="w-8 h-8" />
               </div>
-
-              <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[var(--theme-text-secondary)]">
-                <Clock3 className="w-4 h-4" />
-                <span>Counting down to your special day</span>
-              </div>
-            </>
-          ) : (
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="py-8 space-y-4"
-            >
-              <div className="mx-auto w-16 h-16 rounded-full bg-[var(--theme-accent-primary)]/10 flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-[var(--theme-text-accent)]" />
-              </div>
-
-              <h3 className="font-serif text-2xl font-bold text-[var(--theme-text-primary)]">
-                {status === "birthday"
-                  ? "Today Is The Day"
-                  : "A Day Worth Remembering"}
+              <h3 className="font-serif text-xl font-semibold text-[var(--theme-text-primary)]">
+                Date Not Configured
               </h3>
-
               <p className="text-sm text-[var(--theme-text-secondary)] leading-relaxed">
-                {message}
+                A target date is required to run the live countdown timer. Add a date in the Creator Studio moments step.
               </p>
-            </motion.div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center gap-2 text-xs font-serif text-[var(--theme-text-accent)] uppercase tracking-widest font-semibold mb-6">
+                <CalendarDays className="w-4 h-4" />
+                <span>{formattedDate}</span>
+              </div>
+
+              {status === "before" && targetTime ? (
+                <>
+                  <div className="grid grid-cols-4 gap-2 sm:gap-3">
+                    {[
+                      ["Days", countdown.days],
+                      ["Hours", countdown.hours],
+                      ["Minutes", countdown.minutes],
+                      ["Seconds", countdown.seconds],
+                    ].map(([label, value]) => (
+                      <motion.div
+                        key={String(label)}
+                        className="rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4"
+                        animate={{ scale: label === "Seconds" ? [1, 1.03, 1] : 1 }}
+                        transition={
+                          label === "Seconds"
+                            ? { duration: 1, repeat: Infinity }
+                            : undefined
+                        }
+                      >
+                        <div className="font-serif text-2xl sm:text-3xl font-bold text-[var(--theme-text-primary)]">
+                          {String(value).padStart(2, "0")}
+                        </div>
+
+                        <div className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-widest text-[var(--theme-text-secondary)]">
+                          {label}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[var(--theme-text-secondary)]">
+                    <Clock3 className="w-4 h-4 text-[var(--theme-text-accent)]" />
+                    <span>Counting down to your special day</span>
+                  </div>
+                </>
+              ) : (
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="py-8 space-y-4"
+                >
+                  <div className="mx-auto w-16 h-16 rounded-full bg-[var(--theme-accent-primary)]/10 border border-[var(--theme-accent-primary)]/30 flex items-center justify-center">
+                    <Sparkles className="w-8 h-8 text-[var(--theme-text-accent)]" />
+                  </div>
+
+                  <h3 className="font-serif text-2xl font-bold text-[var(--theme-text-primary)]">
+                    {status === "birthday"
+                      ? "Today Is The Day!"
+                      : "A Day Worth Remembering"}
+                  </h3>
+
+                  <p className="text-sm text-[var(--theme-text-secondary)] leading-relaxed">
+                    {message}
+                  </p>
+                </motion.div>
+              )}
+            </>
           )}
 
           <div className="mt-6 border-t border-white/10 pt-4">
@@ -199,7 +213,7 @@ export function CountdownScene({
         </motion.div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation Footer */}
       <div className="relative z-10 flex items-center justify-between w-full max-w-xl pb-4">
         <Button variant="ghost" size="md" onClick={onPrev}>
           <ArrowLeft className="w-4 h-4 mr-1" />

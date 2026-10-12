@@ -46,6 +46,29 @@ const MOCK_MOMENTS_EXPERIENCE: ExperienceData = {
       enabled: true,
     },
     {
+      id: "mom_roulette_test",
+      momentType: "birthday_roulette",
+      config: {
+        title: "Spin for a Birthday Surprise",
+        options: [
+          { id: "r_1", label: "Free Coffee & Donut", description: "On me next time!" },
+          { id: "r_2", label: "Movie Night Pick", description: "Total control." },
+        ],
+      },
+      sortOrder: 3,
+      enabled: true,
+    },
+    {
+      id: "mom_hidden_test",
+      momentType: "hidden_message",
+      config: {
+        teaserText: "Tap to reveal a secret note...",
+        hiddenMessage: "You mean the absolute world to me. Happy Birthday!",
+      },
+      sortOrder: 4,
+      enabled: true,
+    },
+    {
       id: "mom_coupon_test",
       momentType: "birthday_coupon",
       config: {
@@ -54,7 +77,7 @@ const MOCK_MOMENTS_EXPERIENCE: ExperienceData = {
         terms: "Valid until end of 2026",
         code: "VIP-SPA-2026",
       },
-      sortOrder: 3,
+      sortOrder: 5,
       enabled: true,
     },
     {
@@ -66,7 +89,7 @@ const MOCK_MOMENTS_EXPERIENCE: ExperienceData = {
         onBirthdayMessage: "Happy Birthday Taylor! The day is finally here!",
         postBirthdayMessage: "Hope you had the happiest birthday ever!",
       },
-      sortOrder: 4,
+      sortOrder: 6,
       enabled: true,
     },
     {
@@ -76,7 +99,7 @@ const MOCK_MOMENTS_EXPERIENCE: ExperienceData = {
         promptText: "Close your eyes, make a secret wish, and press to seal it in star dust.",
         sealedMessage: "May every secret wish you made today shine bright and come true this year!",
       },
-      sortOrder: 5,
+      sortOrder: 7,
       enabled: true,
     },
   ],

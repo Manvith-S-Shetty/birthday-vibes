@@ -12,6 +12,8 @@ import { MemoryWallScene } from "./scenes/MemoryWallScene";
 import { LetterScene } from "./scenes/LetterScene";
 import { MysteryGiftScene } from "./scenes/MysteryGiftScene";
 import { MemoryQuizScene } from "./scenes/MemoryQuizScene";
+import { BirthdayRouletteScene } from "./scenes/BirthdayRouletteScene";
+import { HiddenMessageScene } from "./scenes/HiddenMessageScene";
 import { BirthdayCouponScene } from "./scenes/BirthdayCouponScene";
 import { CountdownScene } from "./scenes/CountdownScene";
 import { WishMomentScene } from "./scenes/WishMomentScene";
@@ -28,6 +30,8 @@ export type RecipientSceneId =
   | "letter"
   | "mystery_gift"
   | "memory_quiz"
+  | "birthday_roulette"
+  | "hidden_message"
   | "birthday_coupon"
   | "countdown"
   | "wish_moment"
@@ -71,6 +75,10 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
           sequence.push("mystery_gift");
         } else if (moment.momentType === "memory_quiz") {
           sequence.push("memory_quiz");
+        } else if (moment.momentType === "birthday_roulette") {
+          sequence.push("birthday_roulette");
+        } else if (moment.momentType === "hidden_message") {
+          sequence.push("hidden_message");
         } else if (moment.momentType === "birthday_coupon") {
           sequence.push("birthday_coupon");
         } else if (moment.momentType === "countdown") {
@@ -300,6 +308,45 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
         </div>
       )}
 
+      {/* Floating Scene Sequence Navigation Bar */}
+      {isUnlocked && activeSceneId !== "locked" && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 max-w-[92%] sm:max-w-[85%] overflow-x-auto no-scrollbar py-1.5 px-3 rounded-full border border-[var(--theme-border-strong)] bg-[var(--theme-bg-card)]/90 backdrop-blur-md shadow-2xl flex items-center gap-1.5">
+          {getActiveSceneSequence().map((sId, idx) => {
+            const isActive = activeSceneId === sId;
+            const labels: Record<RecipientSceneId, string> = {
+              locked: "Lock",
+              intro: "Intro",
+              memories: "Memories",
+              letter: "Letter",
+              mystery_gift: "Gift",
+              memory_quiz: "Quiz",
+              birthday_roulette: "Roulette",
+              hidden_message: "Secret",
+              birthday_coupon: "Voucher",
+              countdown: "Timer",
+              wish_moment: "Wish",
+              cake: "Cake",
+              finale: "Finale",
+            };
+            return (
+              <button
+                key={sId}
+                type="button"
+                onClick={() => transitionToScene(sId)}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-[10px] font-sans font-medium transition-all duration-300 whitespace-nowrap min-h-[32px] flex items-center justify-center",
+                  isActive
+                    ? "bg-[var(--theme-accent-primary)] text-[var(--token-ink)] font-semibold shadow-sm"
+                    : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)] hover:bg-white/10"
+                )}
+              >
+                <span>{labels[sId] || sId}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Recipient Scene Transition Container */}
       <div
         className={cn(
@@ -336,6 +383,18 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
             data={data}
             onNext={() => transitionToScene(getNextSceneId("memory_quiz"))}
             onPrev={() => transitionToScene(getPrevSceneId("memory_quiz"))}
+          />
+        ) : activeSceneId === "birthday_roulette" ? (
+          <BirthdayRouletteScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("birthday_roulette"))}
+            onPrev={() => transitionToScene(getPrevSceneId("birthday_roulette"))}
+          />
+        ) : activeSceneId === "hidden_message" ? (
+          <HiddenMessageScene
+            data={data}
+            onNext={() => transitionToScene(getNextSceneId("hidden_message"))}
+            onPrev={() => transitionToScene(getPrevSceneId("hidden_message"))}
           />
         ) : activeSceneId === "birthday_coupon" ? (
           <BirthdayCouponScene
