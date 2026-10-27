@@ -97,28 +97,44 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
       setPreviewCurrentTime(0);
     }
 
-    // Check if in-memory Blob exists for this draft ID
-    const cached = VoiceRecordingCache.get(draft.id);
-    if (cached) {
-      setPreviewUrl(cached.objectUrl);
-      setStatus("recorded");
-      if (draft.voiceMessage?.durationMs) {
-        setDurationSeconds(Math.round(draft.voiceMessage.durationMs / 1000));
+    let isMounted = true;
+
+    async function initVoiceState() {
+      // Check if in-memory Blob exists, or restore from IndexedDB
+      let cached = VoiceRecordingCache.get(draft.id);
+      if (!cached) {
+        cached = await VoiceRecordingCache.restore(draft.id);
       }
-      setIsRefreshStateExpired(false);
-    } else if (draft.voiceMessage && draft.voiceMessage.status === "recorded") {
-      // Refresh occurred: draft metadata exists but Blob expired from heap
-      setPreviewUrl(null);
-      setStatus("idle");
-      setIsRefreshStateExpired(true);
-      setDurationSeconds(draft.voiceMessage.durationMs ? Math.round(draft.voiceMessage.durationMs / 1000) : 0);
-    } else {
-      setPreviewUrl(null);
-      setStatus("idle");
-      setIsRefreshStateExpired(false);
-      setDurationSeconds(0);
+
+      if (!isMounted) return;
+
+      if (cached) {
+        setPreviewUrl(cached.objectUrl);
+        setStatus("recorded");
+        if (draft.voiceMessage?.durationMs) {
+          setDurationSeconds(Math.round(draft.voiceMessage.durationMs / 1000));
+        }
+        setIsRefreshStateExpired(false);
+      } else if (draft.voiceMessage && draft.voiceMessage.status === "recorded") {
+        // True missing audio: draft metadata exists but Blob cannot be found in memory or IndexedDB
+        setPreviewUrl(null);
+        setStatus("idle");
+        setIsRefreshStateExpired(true);
+        setDurationSeconds(draft.voiceMessage.durationMs ? Math.round(draft.voiceMessage.durationMs / 1000) : 0);
+      } else {
+        setPreviewUrl(null);
+        setStatus("idle");
+        setIsRefreshStateExpired(false);
+        setDurationSeconds(0);
+      }
+      setTranscript(draft.voiceMessage?.transcript || "");
     }
-    setTranscript(draft.voiceMessage?.transcript || "");
+
+    initVoiceState();
+
+    return () => {
+      isMounted = false;
+    };
   }, [draft.id, draft.voiceMessage]);
 
   // 2. Full cleanup on unmount
@@ -448,9 +464,28 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
             </div>
 
             {isRefreshStateExpired && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-sans flex items-center gap-2 justify-center max-w-md mx-auto">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                <span>This recording is no longer available in this session. Please record again.</span>
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-sans space-y-2 max-w-md mx-auto text-left">
+                <div className="flex items-center gap-2 font-semibold text-amber-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Recording file unavailable</span>
+                </div>
+                <p className="text-stone-300 text-xs leading-relaxed">
+                  This recording is no longer available in this session. Please record again. Voice messages are optional — you can record a new note or remove it to proceed.
+                </p>
+                <div className="pt-1 flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      setIsRefreshStateExpired(false);
+                      onUpdate({ voiceMessage: undefined });
+                    }}
+                    className="text-xs text-rose-300 hover:text-rose-200 h-8 px-2.5"
+                  >
+                    <span>Remove Voice Note</span>
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -658,7 +693,23 @@ export function StepVoice({ draft, onUpdate, onNext, onPrev, skipCountdownForTes
           <ArrowLeft className="w-4 h-4 mr-1" />
           <span>Back</span>
         </Button>
-        <Button variant="gold-glow" size="lg" onClick={onNext} className="min-h-[48px]">
+        <Button
+          variant="gold-glow"
+          size="lg"
+          onClick={() => {
+            if (isRefreshStateExpired || (draft.voiceMessage?.status === "recorded" && !VoiceRecordingCache.has(draft.id))) {
+              onUpdate({
+                voiceMessage: {
+                  status: "none",
+                  durationMs: 0,
+                  mimeType: "",
+                },
+              });
+            }
+            onNext();
+          }}
+          className="min-h-[48px]"
+        >
           <span>Interactive Moments</span>
           <ArrowRight className="w-4 h-4 ml-1" />
         </Button>

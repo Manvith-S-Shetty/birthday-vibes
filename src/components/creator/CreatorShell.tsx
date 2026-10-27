@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import React, { useState, useEffect } from "react";
 import { BirthdayDraft, CreatorStep } from "@/types/draft";
@@ -57,6 +57,7 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
           if (loaded.themeId) {
             setTheme(loaded.themeId);
           }
+          await VoiceRecordingCache.restore(loaded.id);
         }
       } catch (err) {
         console.warn("Failed to load Creator Studio draft:", err);
@@ -133,6 +134,9 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
     slug: draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "live-preview",
     recipientName: draft.recipientName || "Recipient Name",
     birthdayDate: draft.birthdayDate,
+    relationship: draft.relationship,
+    openingStyle: draft.openingStyle || "cinematic-premiere",
+    memoryDisplayMode: draft.memoryDisplayMode || "grid",
     themeId: draft.themeId,
     personalMessage: draft.personalMessage || "Your personal message will be rendered here...",
     photos: draft.photos,
@@ -272,11 +276,19 @@ export function CreatorShell({ draftId }: { draftId?: string }) {
                 />
               )}
               {draft.currentStep === "preview" && (
-                <StepPreview draft={draft} onNext={handleNextStep} onPrev={handlePrevStep} />
+                <StepPreview
+                  draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNavigateToVoice={() => handleSetStep("voice")}
+                  onNext={handleNextStep}
+                  onPrev={handlePrevStep}
+                />
               )}
               {draft.currentStep === "publish" && (
                 <StepPublishPlaceholder
                   draft={draft}
+                  onUpdate={handleUpdateDraft}
+                  onNavigateToVoice={() => handleSetStep("voice")}
                   onPrev={handlePrevStep}
                   onStartNew={handleStartNewDraft}
                 />

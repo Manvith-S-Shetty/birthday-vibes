@@ -4,21 +4,48 @@ import React, { useState, useEffect } from "react";
 import { BirthdayDraft } from "@/types/draft";
 import { Display, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
-import { Check, Lock, ArrowLeft, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
-import { publishExperience } from "@/app/actions/experienceActions";
+import { Check, Lock, ArrowLeft, RefreshCw, ExternalLink, Loader2, Clock, Mic } from "lucide-react";
+import { publishExperience, PublishResult } from "@/app/actions/experienceActions";
 import { ShareDialog } from "@/components/share/ShareDialog";
 import { QRCodeCard } from "@/components/share/QRCodeCard";
 
 interface StepPublishPlaceholderProps {
   draft: BirthdayDraft;
+  onUpdate?: (updates: Partial<BirthdayDraft>) => void;
+  onNavigateToVoice?: () => void;
   onPrev: () => void;
   onStartNew: () => void;
 }
 
 const PUBLISHED_CACHE = new Map<string, { slug: string; shareUrl: string }>();
-const IN_FLIGHT_PUBLISH = new Map<string, Promise<{ success: boolean; slug?: string; shareUrl?: string; error?: string }>>();
+const IN_FLIGHT_PUBLISH = new Map<string, Promise<PublishResult>>();
 
-export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublishPlaceholderProps) {
+function getOrGenerateSlug(draft: BirthdayDraft): string {
+  if (draft.publishedSlug) return draft.publishedSlug;
+  const cleanName = (draft.recipientName || "gift")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  let randomHex = "";
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    randomHex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } else {
+    randomHex = Math.random().toString(16).substring(2, 18);
+  }
+  return `${cleanName || "gift"}-${randomHex}`;
+}
+
+export function StepPublishPlaceholder({
+  draft,
+  onUpdate,
+  onNavigateToVoice,
+  onPrev,
+  onStartNew,
+}: StepPublishPlaceholderProps) {
   const [isPublishing, setIsPublishing] = useState(() => !PUBLISHED_CACHE.has(draft.id));
   const [publishResult, setPublishResult] = useState<{ slug?: string; shareUrl?: string } | null>(
     () => PUBLISHED_CACHE.get(draft.id) || null
@@ -44,10 +71,31 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
       setIsPublishing(true);
       setError(null);
 
+      // Ensure consistent slug across initial publish and retries
+      const targetSlug = getOrGenerateSlug(draft);
+      if (!draft.publishedSlug && onUpdate) {
+        draft.publishedSlug = targetSlug;
+        onUpdate({ publishedSlug: targetSlug });
+      }
+
+      // Check for voice recording availability if marked as recorded
+      let voiceRecording = VoiceRecordingCache.get(draft.id);
+      if (!voiceRecording && draft.voiceMessage?.status === "recorded") {
+        voiceRecording = await VoiceRecordingCache.restore(draft.id);
+      }
+
+      // Explicitly handle missing audio blob: do not treat metadata as proof of file
+      if (draft.voiceMessage?.status === "recorded" && !voiceRecording) {
+        if (isMountedRef.current) {
+          setError("Voice recording audio file is missing from session cache. Please re-record your voice note before publishing.");
+          setIsPublishing(false);
+        }
+        return;
+      }
+
       try {
         let publishPromise = IN_FLIGHT_PUBLISH.get(draft.id);
         if (!publishPromise) {
-          const voiceRecording = VoiceRecordingCache.get(draft.id);
           publishPromise = publishExperience(draft, voiceRecording?.blob);
           IN_FLIGHT_PUBLISH.set(draft.id, publishPromise);
         }
@@ -57,6 +105,12 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
         if (res.success && res.slug && res.shareUrl) {
           const cached = { slug: res.slug, shareUrl: res.shareUrl };
           PUBLISHED_CACHE.set(draft.id, cached);
+          if (onUpdate) {
+            onUpdate({
+              publishedExperienceId: res.experienceId,
+              publishedSlug: res.slug,
+            });
+          }
           if (isMountedRef.current) {
             setPublishResult(cached);
           }
@@ -83,44 +137,123 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     console.log("[PUBLISH_DIAG] Manual retry requested for draft ID:", draft.id);
     IN_FLIGHT_PUBLISH.delete(draft.id);
     PUBLISHED_CACHE.delete(draft.id);
     setError(null);
     setIsPublishing(true);
 
-    const voiceRecording = VoiceRecordingCache.get(draft.id);
-    const retryPromise = publishExperience(draft, voiceRecording?.blob);
-    IN_FLIGHT_PUBLISH.set(draft.id, retryPromise);
+    // Ensure slug is preserved across retries
+    const targetSlug = getOrGenerateSlug(draft);
+    if (!draft.publishedSlug && onUpdate) {
+      draft.publishedSlug = targetSlug;
+      onUpdate({ publishedSlug: targetSlug });
+    }
 
-    retryPromise
-      .then((res) => {
-        if (res.success && res.slug && res.shareUrl) {
-          const cached = { slug: res.slug, shareUrl: res.shareUrl };
-          PUBLISHED_CACHE.set(draft.id, cached);
-          if (isMountedRef.current) {
-            setPublishResult(cached);
-          }
-        } else {
-          if (isMountedRef.current) {
-            setError(res.error || "Failed to publish experience. Please try again.");
-          }
+    let voiceRecording = VoiceRecordingCache.get(draft.id);
+    if (!voiceRecording && draft.voiceMessage?.status === "recorded") {
+      voiceRecording = await VoiceRecordingCache.restore(draft.id);
+    }
+
+    if (draft.voiceMessage?.status === "recorded" && !voiceRecording) {
+      if (isMountedRef.current) {
+        setError("Voice recording audio file is missing from session cache. Please re-record your voice note before publishing.");
+        setIsPublishing(false);
+      }
+      return;
+    }
+
+    try {
+      const retryPromise = publishExperience(draft, voiceRecording?.blob);
+      IN_FLIGHT_PUBLISH.set(draft.id, retryPromise);
+
+      const res = await retryPromise;
+      if (res.success && res.slug && res.shareUrl) {
+        const cached = { slug: res.slug, shareUrl: res.shareUrl };
+        PUBLISHED_CACHE.set(draft.id, cached);
+        if (onUpdate) {
+          onUpdate({
+            publishedExperienceId: res.experienceId,
+            publishedSlug: res.slug,
+          });
         }
-      })
-      .catch((err: any) => {
-        console.error("[PUBLISH_DIAG] Retry exception caught:", err);
         if (isMountedRef.current) {
-          setError(err?.message || "Failed to publish experience. Please try again.");
+          setPublishResult(cached);
         }
-      })
-      .finally(() => {
-        IN_FLIGHT_PUBLISH.delete(draft.id);
+      } else {
         if (isMountedRef.current) {
-          setIsPublishing(false);
+          setError(res.error || "Failed to publish experience. Please try again.");
         }
-      });
+      }
+    } catch (err: any) {
+      console.error("[PUBLISH_DIAG] Retry exception caught:", err);
+      if (isMountedRef.current) {
+        setError(err?.message || "Failed to publish experience. Please try again.");
+      }
+    } finally {
+      IN_FLIGHT_PUBLISH.delete(draft.id);
+      if (isMountedRef.current) {
+        setIsPublishing(false);
+      }
+    }
   };
+
+  const handlePublishWithoutVoice = async () => {
+    VoiceRecordingCache.delete(draft.id);
+    const updatedDraft: BirthdayDraft = {
+      ...draft,
+      voiceMessage: {
+        status: "none",
+        durationMs: 0,
+        mimeType: "",
+      },
+    };
+    if (onUpdate) {
+      onUpdate({ voiceMessage: updatedDraft.voiceMessage });
+    }
+    IN_FLIGHT_PUBLISH.delete(draft.id);
+    PUBLISHED_CACHE.delete(draft.id);
+    setError(null);
+    setIsPublishing(true);
+
+    try {
+      const res = await publishExperience(updatedDraft, undefined);
+      if (res.success && res.slug && res.shareUrl) {
+        const cached = { slug: res.slug, shareUrl: res.shareUrl };
+        PUBLISHED_CACHE.set(draft.id, cached);
+        if (onUpdate) {
+          onUpdate({
+            publishedExperienceId: res.experienceId,
+            publishedSlug: res.slug,
+          });
+        }
+        if (isMountedRef.current) {
+          setPublishResult(cached);
+        }
+      } else {
+        if (isMountedRef.current) {
+          setError(res.error || "Failed to publish experience. Please try again.");
+        }
+      }
+    } catch (err: any) {
+      if (isMountedRef.current) {
+        setError(err?.message || "Failed to publish experience. Please try again.");
+      }
+    } finally {
+      IN_FLIGHT_PUBLISH.delete(draft.id);
+      if (isMountedRef.current) {
+        setIsPublishing(false);
+      }
+    }
+  };
+
+  const isVoiceError = Boolean(
+    error &&
+      (error.toLowerCase().includes("voice recording") ||
+        error.toLowerCase().includes("voice note") ||
+        error.toLowerCase().includes("audio file"))
+  );
 
   const isSuccess = !!publishResult?.shareUrl;
   const slug = publishResult?.slug;
@@ -164,6 +297,27 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                 <span>Retry Publishing</span>
               </Button>
+              {isVoiceError && onUpdate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePublishWithoutVoice}
+                  className="text-xs min-h-[44px] text-amber-300 hover:text-amber-200 hover:bg-amber-950/40 border border-amber-500/30"
+                >
+                  <span>Publish Without Voice Note</span>
+                </Button>
+              )}
+              {isVoiceError && onNavigateToVoice && (
+                <Button
+                  variant="champagne-outline"
+                  size="sm"
+                  onClick={onNavigateToVoice}
+                  className="text-xs min-h-[44px]"
+                >
+                  <Mic className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Re-record Voice Note</span>
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={onPrev} className="text-xs min-h-[44px]">
                 <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
                 <span>Edit Voice / Draft</span>
@@ -176,14 +330,43 @@ export function StepPublishPlaceholder({ draft, onPrev, onStartNew }: StepPublis
       {isSuccess && shareUrl && slug && (
         <>
           {/* Security PIN Warning Box */}
-          <div className="p-3 sm:p-4 rounded-xl border border-amber-500/30 bg-amber-950/30 text-amber-200 text-xs font-sans text-left space-y-1">
-            <div className="flex items-center gap-1.5 font-semibold text-amber-300">
-              <Lock className="w-4 h-4 text-amber-400" />
-              <span>Passcode Protected</span>
+          {draft.isPinProtected && (
+            <div className="p-3 sm:p-4 rounded-xl border border-amber-500/30 bg-amber-950/30 text-amber-200 text-xs font-sans text-left space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-amber-300">
+                <Lock className="w-4 h-4 text-amber-400" />
+                <span>Passcode Protected</span>
+              </div>
+              <p className="text-stone-300 leading-relaxed text-xs">
+                This gift is protected by your secret passcode ({draft.pin || "Set"}). Send the passcode to{" "}
+                <strong>{draft.recipientName}</strong> separately over text or chat. The passcode is <strong>NEVER</strong> encoded inside the share link or QR code.
+              </p>
             </div>
-            <p className="text-stone-300 leading-relaxed text-xs">
-              This gift is protected by your 4-digit passcode ({draft.pin || "Set"}). Send the passcode to{" "}
-              <strong>{draft.recipientName}</strong> separately over text or chat. The passcode is <strong>NEVER</strong> encoded inside the share link or QR code.
+          )}
+
+          {/* Expiration Lifetime Notice */}
+          <div className="p-3 sm:p-4 rounded-xl border border-[var(--theme-border-subtle)] bg-[var(--theme-bg-card)] text-xs font-sans text-left space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-semibold text-[var(--theme-text-primary)]">
+                <Clock className="w-4 h-4 text-[var(--theme-accent-primary)]" />
+                <span>
+                  Experience Lifetime:{" "}
+                  {draft.expirationOption === "7d"
+                    ? "7 Days"
+                    : draft.expirationOption === "30d"
+                    ? "30 Days"
+                    : draft.expirationOption === "1y"
+                    ? "1 Year"
+                    : "Never (Permanent)"}
+                </span>
+              </div>
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
+                {draft.expirationOption && draft.expirationOption !== "never" ? "Auto-cleanup" : "Keepsake"}
+              </span>
+            </div>
+            <p className="text-stone-400 leading-relaxed text-xs">
+              {draft.expirationOption && draft.expirationOption !== "never"
+                ? "Once expired, private media and recordings will be automatically retired to protect privacy."
+                : "This link and its photos will remain preserved indefinitely."}
             </p>
           </div>
 

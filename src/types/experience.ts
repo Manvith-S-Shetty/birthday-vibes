@@ -1,4 +1,5 @@
 import { ThemeId } from "./theme";
+import { RecipientRelationship, OpeningStyleId, MemoryDisplayMode, ExpirationOption } from "./draft";
 
 export interface MediaItem {
   id: string;
@@ -7,6 +8,9 @@ export interface MediaItem {
   caption?: string;
   altText?: string;
   sortOrder: number;
+  date?: string;
+  location?: string;
+  chapter?: string;
 }
 
 export interface VoiceMessageData {
@@ -104,6 +108,9 @@ export interface ExperienceData {
   slug: string;
   recipientName: string;
   birthdayDate?: string;
+  relationship?: RecipientRelationship;
+  openingStyle?: OpeningStyleId;
+  memoryDisplayMode?: MemoryDisplayMode;
   themeId: ThemeId;
   personalMessage: string;
   photos: MediaItem[];
@@ -113,6 +120,9 @@ export interface ExperienceData {
   moments?: InteractiveMomentData[];
   isPinProtected: boolean;
   pin?: string;
+  expirationOption?: ExpirationOption;
+  expiresAt?: string | null;
+  isExpired?: boolean;
   createdAt: string;
 }
 

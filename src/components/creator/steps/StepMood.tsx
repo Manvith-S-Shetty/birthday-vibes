@@ -1,14 +1,54 @@
 "use client";
 
 import React from "react";
-import { BirthdayDraft } from "@/types/draft";
+import { BirthdayDraft, OpeningStyleId } from "@/types/draft";
 import { ThemeId } from "@/types/theme";
 import { Heading, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
 import { themes } from "@/lib/themes/definitions";
 import { useTheme } from "@/components/themes/ThemeProvider";
-import { Check, Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
+import { Check, Sparkles, ArrowRight, ArrowLeft, Film, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+
+interface OpeningStyleOption {
+  id: OpeningStyleId;
+  name: string;
+  tagline: string;
+  description: string;
+  icon: React.ElementType;
+  previewBadge: string;
+  previewBg: string;
+}
+
+const OPENING_STYLE_OPTIONS: OpeningStyleOption[] = [
+  {
+    id: "cinematic-premiere",
+    name: "Cinematic Premiere",
+    tagline: "Film Festival Title Reveal",
+    description: "Grand widescreen title cards, dramatic spotlight reveal, and cinematic tracking typography.",
+    icon: Film,
+    previewBadge: "Widescreen Premiere",
+    previewBg: "from-amber-950/40 via-purple-950/20 to-black/60",
+  },
+  {
+    id: "warm-letter",
+    name: "Warm Letter",
+    tagline: "Handwritten & Intimate",
+    description: "Tender editorial letter entrance, soft candlelight glow, and elegant parchment atmosphere.",
+    icon: Mail,
+    previewBadge: "Intimate Letter",
+    previewBg: "from-amber-900/30 via-stone-900/40 to-black/60",
+  },
+  {
+    id: "celebration-spark",
+    name: "Celebration Spark",
+    tagline: "Joyful & Energetic",
+    description: "Celebratory animated entrance with glowing bursts, festive fanfare, and radiant typography.",
+    icon: Sparkles,
+    previewBadge: "Festive Fanfare",
+    previewBg: "from-rose-950/40 via-amber-950/30 to-black/60",
+  },
+];
 
 interface StepMoodProps {
   draft: BirthdayDraft;
@@ -99,6 +139,86 @@ export function StepMood({ draft, onUpdate, onNext, onPrev }: StepMoodProps) {
             </button>
           );
         })}
+      </div>
+
+      {/* Opening Style Selection Section */}
+      <div className="space-y-4 pt-6 border-t border-white/10">
+        <div className="space-y-1 text-center sm:text-left">
+          <Eyebrow>Experience Entrance</Eyebrow>
+          <h3 className="font-serif text-2xl text-[var(--theme-text-primary)]">
+            Choose the Opening Style
+          </h3>
+          <p className="text-xs sm:text-sm text-[var(--theme-text-secondary)]">
+            Determine how the recipient is greeted the moment they unlock their birthday surprise.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          {OPENING_STYLE_OPTIONS.map((style) => {
+            const isSelected = (draft.openingStyle || "cinematic-premiere") === style.id;
+            const IconComp = style.icon;
+
+            return (
+              <button
+                type="button"
+                key={style.id}
+                onClick={() => onUpdate({ openingStyle: style.id })}
+                className={cn(
+                  "relative text-left p-4 rounded-2xl border transition-all duration-300 group overflow-hidden flex flex-col justify-between min-h-[190px]",
+                  isSelected
+                    ? "border-[var(--theme-accent-primary)] bg-[var(--theme-bg-card)] box-glow-sm scale-[1.02] shadow-lg"
+                    : "border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)] hover:border-[var(--theme-border-strong)]"
+                )}
+              >
+                {/* Background gradient simulation */}
+                <div
+                  className={cn(
+                    "absolute inset-0 bg-gradient-to-br opacity-40 pointer-events-none transition-opacity group-hover:opacity-60",
+                    style.previewBg
+                  )}
+                />
+
+                <div className="relative z-10 w-full space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-sans uppercase tracking-widest px-2 py-0.5 rounded-full border border-white/10 bg-black/40 text-[var(--theme-text-accent)]">
+                      {style.previewBadge}
+                    </span>
+                    {isSelected ? (
+                      <div className="p-1 rounded-full bg-[var(--theme-accent-primary)] text-[var(--token-ink)]">
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <IconComp className="w-4 h-4 text-[var(--theme-text-secondary)] opacity-40 group-hover:opacity-80" />
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="font-serif text-lg font-medium text-[var(--theme-text-primary)] block">
+                      {style.name}
+                    </span>
+                    <span className="text-[11px] font-sans text-[var(--theme-text-accent)] block mb-1">
+                      {style.tagline}
+                    </span>
+                    <p className="text-xs text-[var(--theme-text-secondary)] leading-relaxed">
+                      {style.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Visual miniature mockup */}
+                <div className="relative z-10 mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] text-[var(--theme-text-secondary)]">
+                  <div className="flex items-center gap-1.5">
+                    <IconComp className="w-3.5 h-3.5 text-[var(--theme-accent-primary)]" />
+                    <span className="text-[10px] font-sans uppercase tracking-wider">Preview Ready</span>
+                  </div>
+                  {isSelected && (
+                    <span className="text-[10px] font-semibold text-[var(--theme-accent-primary)] font-sans">Active</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="pt-4 flex items-center justify-between">

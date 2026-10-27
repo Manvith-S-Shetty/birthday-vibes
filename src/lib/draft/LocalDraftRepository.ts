@@ -10,6 +10,8 @@ export const initialDraft: BirthdayDraft = {
   id: "draft_default",
   recipientName: "",
   birthdayDate: "",
+  relationship: undefined,
+  openingStyle: "cinematic-premiere",
   themeId: defaultThemeId,
   photos: [],
   personalMessage: "",
@@ -21,6 +23,9 @@ export const initialDraft: BirthdayDraft = {
     mimeType: "",
   },
   moments: [],
+  memoryDisplayMode: "grid",
+  expirationOption: "never",
+  expiresAt: null,
   pin: "",
   isPinProtected: false,
   currentStep: "recipient",
@@ -28,9 +33,34 @@ export const initialDraft: BirthdayDraft = {
   updatedAt: new Date().toISOString(),
 };
 
+const inMemoryDrafts = new Map<string, BirthdayDraft>();
+
 export class LocalDraftRepository implements DraftRepository {
   async getDraft(id?: string): Promise<BirthdayDraft | null> {
-    if (typeof window === "undefined") return initialDraft;
+    if (typeof window === "undefined") {
+      const targetId = id || initialDraft.id;
+      const mem = inMemoryDrafts.get(targetId);
+      if (mem) {
+        return {
+          ...mem,
+          relationship: mem.relationship || undefined,
+          openingStyle: mem.openingStyle || "cinematic-premiere",
+          memoryDisplayMode: mem.memoryDisplayMode || "grid",
+          expirationOption: mem.expirationOption || "never",
+          expiresAt: mem.expiresAt ?? null,
+          moments: Array.isArray(mem.moments) ? mem.moments : [],
+          photos: Array.isArray(mem.photos)
+            ? mem.photos.map((p) => ({
+                ...p,
+                date: p.date || undefined,
+                location: p.location || undefined,
+                chapter: p.chapter || undefined,
+              }))
+            : [],
+        };
+      }
+      return { ...initialDraft, id: targetId };
+    }
 
     try {
       const targetId = id || localStorage.getItem(LATEST_DRAFT_KEY) || initialDraft.id;
@@ -43,7 +73,22 @@ export class LocalDraftRepository implements DraftRepository {
       const parsed = JSON.parse(raw) as BirthdayDraft;
       return {
         ...parsed,
+        relationship: parsed.relationship || undefined,
+        openingStyle: parsed.openingStyle || "cinematic-premiere",
+        memoryDisplayMode: parsed.memoryDisplayMode || "grid",
+        expirationOption: parsed.expirationOption || "never",
+        expiresAt: parsed.expiresAt ?? null,
+        publishedExperienceId: parsed.publishedExperienceId || undefined,
+        publishedSlug: parsed.publishedSlug || undefined,
         moments: Array.isArray(parsed.moments) ? parsed.moments : [],
+        photos: Array.isArray(parsed.photos)
+          ? parsed.photos.map((p) => ({
+              ...p,
+              date: p.date || undefined,
+              location: p.location || undefined,
+              chapter: p.chapter || undefined,
+            }))
+          : [],
       };
     } catch (error) {
       console.warn("Failed to read draft from localStorage:", error);
@@ -54,16 +99,24 @@ export class LocalDraftRepository implements DraftRepository {
   async saveDraft(draft: BirthdayDraft): Promise<BirthdayDraft> {
     const updated: BirthdayDraft = {
       ...draft,
+      memoryDisplayMode: draft.memoryDisplayMode || "grid",
+      expirationOption: draft.expirationOption || "never",
+      expiresAt: draft.expiresAt ?? null,
+      publishedExperienceId: draft.publishedExperienceId || undefined,
+      publishedSlug: draft.publishedSlug || undefined,
       updatedAt: new Date().toISOString(),
     };
 
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(`${STORAGE_KEY_PREFIX}${updated.id}`, JSON.stringify(updated));
-        localStorage.setItem(LATEST_DRAFT_KEY, updated.id);
-      } catch (error) {
-        console.warn("Failed to save draft to localStorage:", error);
-      }
+    if (typeof window === "undefined") {
+      inMemoryDrafts.set(updated.id, updated);
+      return updated;
+    }
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${updated.id}`, JSON.stringify(updated));
+      localStorage.setItem(LATEST_DRAFT_KEY, updated.id);
+    } catch (error) {
+      console.warn("Failed to save draft to localStorage:", error);
     }
 
     return updated;

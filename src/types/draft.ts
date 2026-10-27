@@ -13,6 +13,29 @@ export type CreatorStep =
   | "preview"
   | "publish";
 
+export type RecipientRelationship =
+  | "partner"
+  | "best_friend"
+  | "parent"
+  | "sibling"
+  | "colleague"
+  | "other";
+
+export type OpeningStyleId =
+  | "cinematic-premiere"
+  | "warm-letter"
+  | "celebration-spark";
+
+export type MemoryDisplayMode = "grid" | "polaroid" | "timeline";
+
+export const MEMORY_CHAPTER_PRESETS = [
+  "Beginning",
+  "Favorite Memories",
+  "Today",
+] as const;
+
+export type MemoryChapterPreset = (typeof MEMORY_CHAPTER_PRESETS)[number];
+
 export interface VoiceMessageDraftState {
   status: "none" | "recorded";
   durationMs: number;
@@ -21,10 +44,15 @@ export interface VoiceMessageDraftState {
   updatedAt?: string;
 }
 
+export type ExpirationOption = "7d" | "30d" | "1y" | "never";
+
 export interface BirthdayDraft {
   id: string;
   recipientName: string;
   birthdayDate?: string;
+  relationship?: RecipientRelationship;
+  openingStyle?: OpeningStyleId;
+  memoryDisplayMode?: MemoryDisplayMode;
   themeId: ThemeId;
   photos: MediaItem[];
   personalMessage: string;
@@ -33,6 +61,10 @@ export interface BirthdayDraft {
   musicUrl?: string;
   voiceMessage?: VoiceMessageDraftState;
   moments?: InteractiveMomentData[];
+  expirationOption?: ExpirationOption;
+  expiresAt?: string | null;
+  publishedExperienceId?: string;
+  publishedSlug?: string;
   pin?: string;
   isPinProtected: boolean;
   currentStep: CreatorStep;

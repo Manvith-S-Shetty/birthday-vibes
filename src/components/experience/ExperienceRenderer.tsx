@@ -19,6 +19,7 @@ import { CountdownScene } from "./scenes/CountdownScene";
 import { WishMomentScene } from "./scenes/WishMomentScene";
 import { CakeCandlesScene } from "./scenes/CakeCandlesScene";
 import { FinaleScene } from "./scenes/FinaleScene";
+import { ExpiredExperienceView } from "./ExpiredExperienceView";
 
 import { Volume2, VolumeX, Music, Mic, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -41,17 +42,40 @@ export type RecipientSceneId =
 interface ExperienceRendererProps {
   data: ExperienceData;
   isPreview?: boolean;
+  initialUnlocked?: boolean;
+  showSceneNavigation?: boolean;
 }
 
-export function ExperienceRenderer({ data: initialData, isPreview = false }: ExperienceRendererProps) {
+export function ExperienceRenderer({
+  data: initialData,
+  isPreview = false,
+  initialUnlocked,
+  showSceneNavigation = isPreview,
+}: ExperienceRendererProps) {
   const { setTheme } = useTheme();
   const [data, setData] = useState<ExperienceData>(initialData);
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(!initialData.isPinProtected || isPreview);
+  const [isExpired, setIsExpired] = useState<boolean>(Boolean(initialData.isExpired));
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(
+    initialUnlocked !== undefined
+      ? initialUnlocked
+      : (!initialData.isPinProtected || isPreview)
+  );
   const [sceneId, setSceneId] = useState<RecipientSceneId>(isUnlocked ? "intro" : "locked");
 
   // Cinematic Scene Transition State
   const [activeSceneId, setActiveSceneId] = useState<RecipientSceneId>(sceneId);
   const [transitionState, setTransitionState] = useState<"active" | "exiting">("active");
+
+  // Dynamic payload fetch for unprotected experiences without full content
+  useEffect(() => {
+    if (!isPreview && !initialData.isPinProtected && !data.personalMessage && data.slug) {
+      getProtectedExperiencePayload(data.slug).then((res) => {
+        if (res.success && res.data) {
+          setData(res.data);
+        }
+      });
+    }
+  }, [data.slug, initialData.isPinProtected, data.personalMessage, isPreview]);
 
   // Audio control state
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
@@ -231,6 +255,10 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
     // Fetch full protected payload post-unlock if not in live preview mode
     if (!isPreview) {
       const payloadResult = await getProtectedExperiencePayload(data.slug);
+      if (payloadResult.isExpired) {
+        setIsExpired(true);
+        return;
+      }
       if (payloadResult.success && payloadResult.data) {
         setData(payloadResult.data);
       }
@@ -248,6 +276,15 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
   const handleReplay = () => {
     transitionToScene("intro");
   };
+
+  if (isExpired) {
+    return (
+      <ExpiredExperienceView
+        recipientName={data.recipientName}
+        themeId={data.themeId}
+      />
+    );
+  }
 
   return (
     <div className="relative w-full min-h-screen bg-[var(--theme-bg-primary)] text-[var(--theme-text-primary)] transition-colors duration-500 overflow-x-hidden">
@@ -308,9 +345,14 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
         </div>
       )}
 
-      {/* Floating Scene Sequence Navigation Bar */}
-      {isUnlocked && activeSceneId !== "locked" && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 max-w-[92%] sm:max-w-[85%] overflow-x-auto no-scrollbar py-1.5 px-3 rounded-full border border-[var(--theme-border-strong)] bg-[var(--theme-bg-card)]/90 backdrop-blur-md shadow-2xl flex items-center gap-1.5">
+      {/* Floating Scene Sequence Navigation Bar - Only rendered in creator preview */}
+      {showSceneNavigation && isUnlocked && activeSceneId !== "locked" && (
+        <div
+          data-testid="creator-scene-navigation"
+          role="navigation"
+          aria-label="Scene Preview Navigation"
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 max-w-[92%] sm:max-w-[85%] overflow-x-auto no-scrollbar py-1.5 px-3 rounded-full border border-[var(--theme-border-strong)] bg-[var(--theme-bg-card)]/90 backdrop-blur-md shadow-2xl flex items-center gap-1.5"
+        >
           {getActiveSceneSequence().map((sId, idx) => {
             const isActive = activeSceneId === sId;
             const labels: Record<RecipientSceneId, string> = {
@@ -332,6 +374,7 @@ export function ExperienceRenderer({ data: initialData, isPreview = false }: Exp
               <button
                 key={sId}
                 type="button"
+                data-scene-id={sId}
                 onClick={() => transitionToScene(sId)}
                 className={cn(
                   "px-2.5 py-1 rounded-full text-[10px] font-sans font-medium transition-all duration-300 whitespace-nowrap min-h-[32px] flex items-center justify-center",

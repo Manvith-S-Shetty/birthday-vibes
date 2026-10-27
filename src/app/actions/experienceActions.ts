@@ -2,9 +2,11 @@
 import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
 import { ExperienceData } from "@/types/experience";
 import { BirthdayDraft } from "@/types/draft";
+import { localDraftRepository } from "@/lib/draft/LocalDraftRepository";
 
 export interface LockedCoverMetadata {
   isLocked: boolean;
+  isExpired?: boolean;
   slug: string;
   recipientName: string;
   birthdayDate?: string;
@@ -14,12 +16,14 @@ export interface LockedCoverMetadata {
 
 export interface VerifyPinResult {
   success: boolean;
+  isExpired?: boolean;
   error?: string;
   retryAfterMs?: number;
 }
 
 export interface ProtectedPayloadResult {
   success: boolean;
+  isExpired?: boolean;
   data?: ExperienceData;
   error?: string;
 }
@@ -28,22 +32,37 @@ export interface PublishResult {
   success: boolean;
   slug?: string;
   shareUrl?: string;
+  experienceId?: string;
   error?: string;
 }
 
 // Client-side wrappers calling server endpoints / actions safely
 export async function getLockedCoverMetadata(slug: string): Promise<LockedCoverMetadata> {
   const res = await fetch(`/api/g/${slug}/cover`, { cache: "no-store" });
-  if (!res.ok) {
+  const data = await res.json().catch(() => null);
+
+  if (res.status === 410 || data?.isExpired) {
     return {
       isLocked: true,
+      isExpired: true,
+      slug,
+      recipientName: data?.recipientName || "Someone Special",
+      themeId: data?.themeId || "midnight-cinema",
+      isPinProtected: true,
+    };
+  }
+
+  if (!res.ok || !data) {
+    return {
+      isLocked: true,
+      isExpired: false,
       slug,
       recipientName: "Special Person",
       themeId: "midnight-cinema",
       isPinProtected: true,
     };
   }
-  return res.json();
+  return data;
 }
 
 export async function verifyPinAndUnlock(slug: string, pin: string): Promise<VerifyPinResult> {
@@ -53,10 +72,11 @@ export async function verifyPinAndUnlock(slug: string, pin: string): Promise<Ver
     body: JSON.stringify({ pin }),
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     return {
       success: false,
+      isExpired: res.status === 410 || Boolean(data.isExpired),
       error: data.error || "Passcode incorrect. Please try again.",
       retryAfterMs: data.retryAfterMs,
     };
@@ -67,11 +87,12 @@ export async function verifyPinAndUnlock(slug: string, pin: string): Promise<Ver
 
 export async function getProtectedExperiencePayload(slug: string): Promise<ProtectedPayloadResult> {
   const res = await fetch(`/api/g/${slug}/payload`, { cache: "no-store" });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
     return {
       success: false,
+      isExpired: res.status === 410 || Boolean(data.isExpired),
       error: data.error || "Access denied. PIN verification required.",
     };
   }
@@ -109,10 +130,12 @@ export async function publishExperience(
     }
 
     console.log("[PUBLISH_CLIENT] voice cache lookup");
-    const cachedRecording = VoiceRecordingCache.get(draftId) || (draft?.id ? VoiceRecordingCache.get(draft.id) : null);
+    let cachedRecording = VoiceRecordingCache.get(draftId) || (draft?.id ? VoiceRecordingCache.get(draft.id) : null);
+    if (!cachedRecording && typeof window !== "undefined") {
+      cachedRecording = (await VoiceRecordingCache.restore(draftId)) || (draft?.id ? await VoiceRecordingCache.restore(draft.id) : null);
+    }
     const recording = voiceBlob || cachedRecording?.blob;
     const isVoiceRecorded = draft?.voiceMessage && draft.voiceMessage.status === "recorded";
-    const hasVoiceRecording = !!recording || isVoiceRecorded;
 
     console.log(
       "[PUBLISH_CLIENT] voice recording found/missing",
@@ -129,7 +152,7 @@ export async function publishExperience(
       };
     }
 
-    if (hasVoiceRecording || recording) {
+    if (recording) {
       const mimeType = recording?.type || draft?.voiceMessage?.mimeType || "";
       const durationMs = draft?.voiceMessage?.durationMs ?? 0;
       const fileSize = recording?.size || 0;
@@ -206,10 +229,27 @@ export async function publishExperience(
       };
     }
 
+    if (typeof window !== "undefined") {
+      try {
+        const current = await localDraftRepository.getDraft(draftId);
+        if (current) {
+          await localDraftRepository.saveDraft({
+            ...current,
+            publishedExperienceId: data.experienceId || current.publishedExperienceId,
+            publishedSlug: data.slug || current.publishedSlug,
+            currentStep: "publish",
+          });
+        }
+      } catch (e) {
+        console.warn("[PUBLISH_CLIENT] Failed to update local draft cache after publish:", e);
+      }
+    }
+
     return {
       success: true,
       slug: data.slug,
       shareUrl: data.shareUrl,
+      experienceId: data.experienceId,
     };
   } catch (err: any) {
     console.error("[PUBLISH_CLIENT] Exception during publishExperience:", err);

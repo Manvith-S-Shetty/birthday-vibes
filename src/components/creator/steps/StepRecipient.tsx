@@ -1,16 +1,33 @@
 "use client";
 
 import React, { useState } from "react";
-import { BirthdayDraft } from "@/types/draft";
+import { BirthdayDraft, RecipientRelationship } from "@/types/draft";
 import { Display, Heading, Body, Eyebrow, Caption } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
-import { User, Calendar, ArrowRight } from "lucide-react";
+import { User, Calendar, ArrowRight, Heart, Sparkles, Home, Users, Briefcase, Star, Check } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 
 interface StepRecipientProps {
   draft: BirthdayDraft;
   onUpdate: (updates: Partial<BirthdayDraft>) => void;
   onNext: () => void;
 }
+
+interface RelationshipOption {
+  id: RecipientRelationship;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+}
+
+const RELATIONSHIP_OPTIONS: RelationshipOption[] = [
+  { id: "partner", label: "Partner", description: "Spouse, fiancé, romantic partner", icon: Heart },
+  { id: "best_friend", label: "Best Friend", description: "Closest confidant & partner in crime", icon: Sparkles },
+  { id: "parent", label: "Parent", description: "Mom, dad, or guardian figure", icon: Home },
+  { id: "sibling", label: "Sibling", description: "Brother, sister, or lifelong kin", icon: Users },
+  { id: "colleague", label: "Colleague", description: "Coworker, mentor, or team member", icon: Briefcase },
+  { id: "other", label: "Other", description: "Cherished friend or special person", icon: Star },
+];
 
 export function StepRecipient({ draft, onUpdate, onNext }: StepRecipientProps) {
   const [error, setError] = useState<string>("");
@@ -109,6 +126,68 @@ export function StepRecipient({ draft, onUpdate, onNext }: StepRecipientProps) {
             </button>
           </div>
           <Caption>If provided, a subtle countdown and date reveal moment will be added.</Caption>
+        </div>
+
+        {/* Relationship Selector Field */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block font-sans text-xs uppercase tracking-widest text-[var(--theme-text-secondary)] font-medium">
+              Relationship <span className="text-xs opacity-60 lowercase font-normal">(optional)</span>
+            </label>
+            {draft.relationship && (
+              <button
+                type="button"
+                onClick={() => onUpdate({ relationship: undefined })}
+                className="text-xs text-[var(--theme-text-accent)] hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {RELATIONSHIP_OPTIONS.map((opt) => {
+              const isSelected = draft.relationship === opt.id;
+              const IconComp = opt.icon;
+              return (
+                <button
+                  type="button"
+                  key={opt.id}
+                  onClick={() => {
+                    onUpdate({ relationship: isSelected ? undefined : opt.id });
+                  }}
+                  className={cn(
+                    "flex flex-col items-start p-3 rounded-xl border text-left transition-all duration-200 group relative min-h-[64px]",
+                    isSelected
+                      ? "border-[var(--theme-accent-primary)] bg-[var(--theme-bg-card)] box-glow-sm shadow-md"
+                      : "border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)]/60 hover:border-[var(--theme-border-strong)]"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <IconComp
+                      className={cn(
+                        "w-4 h-4 transition-colors",
+                        isSelected
+                          ? "text-[var(--theme-accent-primary)]"
+                          : "text-[var(--theme-text-secondary)] group-hover:text-[var(--theme-text-primary)]"
+                      )}
+                    />
+                    {isSelected && (
+                      <Check className="w-3.5 h-3.5 text-[var(--theme-accent-primary)]" />
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "text-xs font-sans font-medium",
+                      isSelected ? "text-[var(--theme-text-primary)] font-semibold" : "text-[var(--theme-text-secondary)]"
+                    )}
+                  >
+                    {opt.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Caption>Personalizes opening titles, warm dedications, and tone for the recipient.</Caption>
         </div>
       </div>
 

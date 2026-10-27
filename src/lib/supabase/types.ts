@@ -21,11 +21,13 @@ export interface Database {
           pin_hash: string | null;
           pin_salt: string | null;
           is_pin_protected: boolean;
-          status: "draft" | "ready" | "published";
+          status: "draft" | "ready" | "published" | "expired";
           current_step: string;
           created_at: string;
           updated_at: string;
           published_at: string | null;
+          expires_at: string | null;
+          expiration_option: string;
         };
         Insert: {
           id?: string;
@@ -38,11 +40,13 @@ export interface Database {
           pin_hash?: string | null;
           pin_salt?: string | null;
           is_pin_protected?: boolean;
-          status?: "draft" | "ready" | "published";
+          status?: "draft" | "ready" | "published" | "expired";
           current_step?: string;
           created_at?: string;
           updated_at?: string;
           published_at?: string | null;
+          expires_at?: string | null;
+          expiration_option?: string;
         };
         Update: {
           id?: string;
@@ -55,11 +59,13 @@ export interface Database {
           pin_hash?: string | null;
           pin_salt?: string | null;
           is_pin_protected?: boolean;
-          status?: "draft" | "ready" | "published";
+          status?: "draft" | "ready" | "published" | "expired";
           current_step?: string;
           created_at?: string;
           updated_at?: string;
           published_at?: string | null;
+          expires_at?: string | null;
+          expiration_option?: string;
         };
       };
       media: {

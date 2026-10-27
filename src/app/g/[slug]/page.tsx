@@ -3,6 +3,8 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { supabaseExperienceRepository } from "@/lib/experience/SupabaseExperienceRepository";
 import { ExperienceRenderer } from "@/components/experience/ExperienceRenderer";
+import { ExpiredExperienceView } from "@/components/experience/ExpiredExperienceView";
+import { isRecipientAuthorized } from "@/lib/security/session";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,18 @@ export async function generateMetadata({
   }
 
   const recipientName = metadata.recipientName || "Someone Special";
+
+  if (metadata.isExpired) {
+    return {
+      title: `Experience Expired — Birthday Vibes`,
+      description: `The birthday celebration crafted for ${recipientName} has expired.`,
+      robots: {
+        index: false,
+        follow: false,
+        noarchive: true,
+      },
+    };
+  }
 
   return {
     title: `A Birthday Gift for ${recipientName} — Birthday Vibes`,
@@ -71,6 +85,36 @@ export default async function RecipientExperiencePage({
     notFound();
   }
 
+  // Consistent, polished expired experience view
+  if (metadata.isExpired) {
+    return (
+      <ExpiredExperienceView
+        recipientName={metadata.recipientName}
+        themeId={metadata.themeId}
+      />
+    );
+  }
+
+  const isProtected = Boolean(metadata.isPinProtected);
+  const authorized = isProtected ? isRecipientAuthorized(params.slug) : true;
+
+  if (authorized) {
+    const payload = await supabaseExperienceRepository.getProtectedPayload(params.slug);
+    if (payload) {
+      return (
+        <ExperienceRenderer
+          key={params.slug}
+          data={payload}
+          initialUnlocked={true}
+          isPreview={false}
+          showSceneNavigation={false}
+        />
+      );
+    }
+  }
+
+  // PIN-protected experience with no active authorization:
+  // Render ONLY the locked cover scene data. Do NOT expose private messages, photos, or media.
   return (
     <ExperienceRenderer
       key={params.slug}
@@ -82,9 +126,14 @@ export default async function RecipientExperiencePage({
         themeId: metadata.themeId as any,
         personalMessage: "",
         photos: [],
-        isPinProtected: metadata.isPinProtected,
+        isPinProtected: isProtected,
+        isExpired: false,
+        expiresAt: metadata.expiresAt,
         createdAt: new Date().toISOString(),
       }}
+      initialUnlocked={!isProtected}
+      isPreview={false}
+      showSceneNavigation={false}
     />
   );
 }

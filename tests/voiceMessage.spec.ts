@@ -127,11 +127,11 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
     await page.goto("/create");
 
     // Click Next ("Interactive Moments") without recording
-    const nextBtn = page.getByRole("button", { name: /Interactive Moments|Security/i });
+    const nextBtn = page.getByRole("button", { name: "Interactive Moments" });
     await expect(nextBtn).toBeVisible();
     await nextBtn.click();
 
-    // Should advance to Security stage
+    // Should advance to Moments stage
     await expect(page.getByText("Step 07", { exact: false })).toBeVisible();
   });
 
@@ -281,7 +281,7 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
     await expect(page.getByText("Voice Note Recorded")).toBeVisible();
 
     // 2. Navigate away to Step 07 (Interactive Moments)
-    await page.getByRole("button", { name: /Interactive Moments|Security/i }).click();
+    await page.getByRole("button", { name: "Interactive Moments" }).click();
     await expect(page.getByText("Step 07", { exact: false })).toBeVisible();
 
     // 3. Navigate back to Step 06 (Voice Note)
@@ -656,7 +656,8 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
         themeId: "midnight-cinema",
         photos: [],
         personalMessage: "Voice payload test",
-        isPinProtected: false,
+        isPinProtected: true,
+        pin: "1234",
         currentStep: "publish",
       };
 
@@ -692,9 +693,9 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
       expect(coverBody.voiceMessage).toBeUndefined();
       expect(coverBody.audioUrl).toBeUndefined();
 
-      // Unlock experience (pin is empty string)
+      // Unlock experience with correct pin
       const unlockRes = await request.post(`/api/g/${slug}/unlock`, {
-        data: { pin: "" },
+        data: { pin: "1234" },
       });
       expect(unlockRes.status()).toBe(200);
 
@@ -778,9 +779,8 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
         await transcriptInput.fill("Testing live recipient voice player UI");
       }
 
-      // Navigate to Step 07 Security and Step 08 Preview
-      await page.getByRole("button", { name: "Security & Lock" }).click();
-      await page.getByRole("button", { name: /Preview & Publish|Preview/i }).click();
+      // Navigate to Step 09 Preview via navigation pills
+      await page.getByRole("button", { name: "09. Preview" }).click();
 
       // Check Voice Note button UI in ExperienceRenderer / StepPreview
       const playBtn = page.getByRole("button", { name: "Play Birthday Message" }).first();
@@ -796,6 +796,165 @@ test.describe("V2-C.1: Creator Voice Recording Component (`StepVoice`)", () => {
       // Click pause
       await pauseBtn.click();
       await expect(page.getByRole("button", { name: "Play Birthday Message" }).first()).toBeVisible();
+    });
+
+    test("23. Step 10 Missing Voice Recording in Session Cache Error & Guidance", async ({ page }) => {
+      // Seed draft with recorded metadata but NO binary audio in session cache
+      await page.addInitScript(() => {
+        window.localStorage.clear();
+        const draft = {
+          id: "draft_test_missing_voice_cache",
+          recipientName: "Morgan",
+          birthdayDate: "2026-10-25",
+          themeId: "midnight-cinema",
+          photos: [],
+          personalMessage: "Wishing you an amazing year ahead!",
+          isPinProtected: false,
+          currentStep: "publish",
+          voiceMessage: {
+            status: "recorded",
+            durationMs: 5000,
+            mimeType: "audio/webm",
+            updatedAt: new Date().toISOString(),
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem("wishlight_latest_draft_id", draft.id);
+        localStorage.setItem(`wishlight_draft_${draft.id}`, JSON.stringify(draft));
+      });
+
+      await page.goto("/create");
+
+      // Verify publishing error message is displayed
+      await expect(
+        page.getByText("Voice recording audio file is missing from session cache. Please re-record your voice note before publishing.")
+      ).toBeVisible();
+
+      // Verify guidance buttons are visible
+      await expect(page.getByRole("button", { name: "Publish Without Voice Note" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Re-record Voice Note" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Retry Publishing" })).toBeVisible();
+    });
+
+    test("24. Creator can Publish Without Voice Note when Audio is Missing", async ({ page }) => {
+      await page.addInitScript(() => {
+        window.localStorage.clear();
+        const draft = {
+          id: "draft_test_publish_without_voice",
+          recipientName: "Taylor No Voice",
+          birthdayDate: "2026-10-25",
+          themeId: "midnight-cinema",
+          photos: [],
+          personalMessage: "A great birthday wish!",
+          isPinProtected: false,
+          currentStep: "publish",
+          voiceMessage: {
+            status: "recorded",
+            durationMs: 5000,
+            mimeType: "audio/webm",
+          },
+        };
+        localStorage.setItem("wishlight_latest_draft_id", draft.id);
+        localStorage.setItem(`wishlight_draft_${draft.id}`, JSON.stringify(draft));
+      });
+
+      await page.goto("/create");
+
+      // Wait for missing audio notice
+      const errorMsg = page.getByText("Voice recording audio file is missing from session cache");
+      await expect(errorMsg).toBeVisible();
+
+      // Click "Publish Without Voice Note"
+      const publishWithoutVoiceBtn = page.getByRole("button", { name: "Publish Without Voice Note" });
+      await expect(publishWithoutVoiceBtn).toBeVisible();
+      await publishWithoutVoiceBtn.click();
+
+      // Verify success
+      await expect(page.getByText(/Your Wishlight gift is ready|Complete & Shared/i)).toBeVisible({ timeout: 15000 });
+    });
+
+    test("25. Creator can Navigate to Re-record Voice Note from Step 10", async ({ page }) => {
+      await page.addInitScript(() => {
+        window.localStorage.clear();
+        const draft = {
+          id: "draft_test_nav_rerecord",
+          recipientName: "Jordan",
+          birthdayDate: "2026-10-25",
+          themeId: "midnight-cinema",
+          photos: [],
+          personalMessage: "Happy Birthday!",
+          isPinProtected: false,
+          currentStep: "publish",
+          voiceMessage: {
+            status: "recorded",
+            durationMs: 5000,
+            mimeType: "audio/webm",
+          },
+        };
+        localStorage.setItem("wishlight_latest_draft_id", draft.id);
+        localStorage.setItem(`wishlight_draft_${draft.id}`, JSON.stringify(draft));
+      });
+
+      await page.goto("/create");
+
+      // Wait for missing audio error
+      await expect(page.getByText("Voice recording audio file is missing from session cache")).toBeVisible();
+
+      // Click "Re-record Voice Note"
+      const reRecordBtn = page.getByRole("button", { name: "Re-record Voice Note" });
+      await expect(reRecordBtn).toBeVisible();
+      await reRecordBtn.click();
+
+      // Verify creator is returned to Step 06 (Voice Note)
+      await expect(page.getByRole("heading", { name: /Add a Personal Voice Message/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Record Voice Note" })).toBeVisible();
+    });
+
+    test("26. Retry Publishing Preserves Slug and Avoids Duplicate Experiences", async ({ request }) => {
+      const fixedSlug = "test-idempotent-retry-slug-12345";
+      const draft = {
+        id: "draft_test_idempotency",
+        recipientName: "Retry Recipient",
+        birthdayDate: "2026-10-25",
+        themeId: "midnight-cinema",
+        photos: [],
+        personalMessage: "Testing idempotency",
+        isPinProtected: false,
+        publishedSlug: fixedSlug,
+        currentStep: "publish",
+        voiceMessage: {
+          status: "none",
+          durationMs: 0,
+          mimeType: "",
+        },
+      };
+
+      // First publish
+      const firstRes = await request.post("/api/create/publish", {
+        headers: { "Content-Type": "application/json" },
+        data: { draft, draftId: draft.id },
+      });
+      expect(firstRes.status()).toBe(200);
+      const firstData = await firstRes.json();
+      expect(firstData.success).toBe(true);
+      expect(firstData.slug).toBe(fixedSlug);
+      const firstExpId = firstData.experienceId;
+
+      // Second publish (retry) with same draft & publishedExperienceId
+      const retryDraft = {
+        ...draft,
+        publishedExperienceId: firstExpId,
+      };
+      const retryRes = await request.post("/api/create/publish", {
+        headers: { "Content-Type": "application/json" },
+        data: { draft: retryDraft, draftId: retryDraft.id },
+      });
+      expect(retryRes.status()).toBe(200);
+      const retryData = await retryRes.json();
+      expect(retryData.success).toBe(true);
+      expect(retryData.slug).toBe(fixedSlug);
+      expect(retryData.experienceId).toBe(firstExpId);
     });
   });
 });

@@ -7,6 +7,7 @@ import { supabaseAdminClient } from "@/lib/supabase/server";
 
 import { BirthdayDraft } from "@/types/draft";
 import { CURATED_MUSIC_TRACKS } from "@/lib/constants/music";
+import { calculateExpiresAt } from "@/lib/expiration/expiration";
 
 function getValidatedCanonicalAppUrl(request: Request): { url?: string; error?: string } {
   const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL || "").trim();
@@ -135,10 +136,12 @@ export async function POST(request: Request) {
 
   // 2. Validate PIN and generate high-entropy slug & salted PIN hash
   const pin = (draft.pin || "").trim();
-  if (draft.isPinProtected && !pin) {
+  const isPinProtected = Boolean(draft.isPinProtected);
+
+  if (isPinProtected && (!pin || pin.length < 4 || pin.length > 6)) {
     console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
-      { error: "A PIN is required before publishing." },
+      { error: "A 4 to 6 digit secret PIN is required before publishing when PIN protection is enabled." },
       { status: 400 }
     );
   }
@@ -186,8 +189,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const slug = generateHighEntropySlug(draft.recipientName);
-  const { hash, salt } = hashPin(pin);
+  // Preserve slug & experience ID across retries to prevent duplicate experiences
+  const experienceId = draft.publishedExperienceId || (draft.id && !draft.id.startsWith("draft_") ? draft.id : undefined);
+  let savedExperienceId: string | undefined = experienceId;
+  const slug = draft.publishedSlug || generateHighEntropySlug(draft.recipientName);
+  const { hash, salt } = (isPinProtected && pin) ? hashPin(pin) : { hash: null, salt: null };
+  const publishedAt = new Date();
+  const expirationOption = draft.expirationOption || "never";
+  const expiresAt = calculateExpiresAt(expirationOption, publishedAt);
 
   if (isSupabaseConfigured()) {
     try {
@@ -198,25 +207,57 @@ export async function POST(request: Request) {
         slug,
         recipient_name: draft.recipientName,
         birthday_date: draft.birthdayDate || null,
+        relationship: draft.relationship || null,
+        opening_style: draft.openingStyle || "cinematic-premiere",
+        memory_display_mode: draft.memoryDisplayMode || "grid",
         theme_id: draft.themeId,
         personal_message: draft.personalMessage,
         pin_hash: hash,
         pin_salt: salt,
-        is_pin_protected: draft.isPinProtected,
+        is_pin_protected: isPinProtected,
         status: "published",
         current_step: "publish",
-        published_at: new Date().toISOString(),
+        published_at: publishedAt.toISOString(),
+        expires_at: expiresAt,
+        expiration_option: expirationOption,
       };
-      if (draft.id && !draft.id.startsWith("draft_")) {
-        experienceRow.id = draft.id;
+      if (experienceId) {
+        experienceRow.id = experienceId;
       }
 
       console.time("[PUBLISH_TIMING] 1. upsert_experience");
-      const { data: exp, error: expError } = await (supabaseAdminClient as any)
+      let { data: exp, error: expError } = await (supabaseAdminClient as any)
         .from("experiences")
         .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
         .select()
         .single();
+
+      if (exp?.id) {
+        savedExperienceId = exp.id;
+      }
+
+      if (
+        expError &&
+        (expError.message?.includes("relationship") ||
+          expError.message?.includes("opening_style") ||
+          expError.message?.includes("memory_display_mode") ||
+          expError.message?.includes("expires_at") ||
+          expError.message?.includes("expiration_option"))
+      ) {
+        console.warn("Retrying experience upsert without optional schema extension columns:", expError.message);
+        delete experienceRow.relationship;
+        delete experienceRow.opening_style;
+        delete experienceRow.memory_display_mode;
+        delete experienceRow.expires_at;
+        delete experienceRow.expiration_option;
+        const retry = await (supabaseAdminClient as any)
+          .from("experiences")
+          .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
+          .select()
+          .single();
+        exp = retry.data;
+        expError = retry.error;
+      }
       console.timeEnd("[PUBLISH_TIMING] 1. upsert_experience");
 
       if (expError) throw expError;
@@ -274,6 +315,9 @@ export async function POST(request: Request) {
               metadata: {
                 mime_type: mimeType,
                 file_size: fileSize,
+                date: p.date || null,
+                location: p.location || null,
+                chapter: p.chapter || null,
               },
             },
           };
@@ -473,6 +517,10 @@ export async function POST(request: Request) {
   // Update local draft status as published
   await localDraftRepository.saveDraft({
     ...draft,
+    publishedExperienceId: savedExperienceId,
+    publishedSlug: slug,
+    expirationOption,
+    expiresAt,
     currentStep: "publish",
   });
 
@@ -492,5 +540,6 @@ export async function POST(request: Request) {
     success: true,
     slug,
     shareUrl,
+    experienceId: savedExperienceId,
   });
 }

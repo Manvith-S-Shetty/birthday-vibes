@@ -14,5 +14,18 @@ export async function GET(
     return NextResponse.json({ error: "Experience not found" }, { status: 404 });
   }
 
+  if (metadata.isExpired) {
+    return NextResponse.json(
+      {
+        error: "This birthday experience has expired.",
+        code: "EXPERIENCE_EXPIRED",
+        isExpired: true,
+        recipientName: metadata.recipientName,
+        themeId: metadata.themeId,
+      },
+      { status: 410 }
+    );
+  }
+
   return NextResponse.json(metadata);
 }

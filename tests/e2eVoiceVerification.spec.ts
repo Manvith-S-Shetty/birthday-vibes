@@ -107,17 +107,33 @@ test.describe("Real E2E Verification of Voice-Message Publishing Flow", () => {
       await transcriptInput.fill("Sending lots of love on your special day!");
     }
 
-    // 10. Continue to Security
-    await page.getByRole("button", { name: /Security & Lock/i }).click();
+    // 10. Advance through Moments, Security, and Preview to Publish
+    const momentsBtn = page.getByRole("button", { name: "Interactive Moments" });
+    await momentsBtn.waitFor({ state: "visible", timeout: 10000 });
+    await momentsBtn.click();
 
-    // 11. Continue to Preview/Publish
-    const securityNextBtn = page.getByRole("button", { name: /Preview & Publish|Publish/i });
-    await securityNextBtn.waitFor({ state: "visible" });
-    await securityNextBtn.click();
+    const securityBtn = page.getByRole("button", { name: /Passcode & Security|Security & Lock/i });
+    await securityBtn.waitFor({ state: "visible", timeout: 10000 });
+    await securityBtn.click();
+
+    // Fill PIN in StepSecurity
+    const pinInput = page.locator('input[placeholder*="1024"]');
+    await pinInput.waitFor({ state: "visible", timeout: 10000 });
+    await pinInput.fill("1234");
+    const confirmPinInput = page.locator('input[placeholder*="Re-enter"]');
+    await confirmPinInput.fill("1234");
+
+    const reviewBtn = page.getByRole("button", { name: /Review Experience|Preview & Publish/i });
+    await reviewBtn.waitFor({ state: "visible", timeout: 10000 });
+    await reviewBtn.click();
+
+    const publishBtn = page.getByRole("button", { name: "Publish Birthday Experience", exact: true });
+    await publishBtn.waitFor({ state: "visible", timeout: 10000 });
+    await publishBtn.click();
 
     // 12 & 13. Verify publishing succeeds
     await page.waitForTimeout(1000);
-    const publishHeading = page.getByText(/Your Wishlight gift is ready|Complete & Shared/i);
+    const publishHeading = page.getByRole("heading", { name: "Your Wishlight gift is ready" });
     await expect(publishHeading).toBeVisible({ timeout: 10000 });
 
     // 14 & 15. Verify Supabase Storage & DB row for the published experience
