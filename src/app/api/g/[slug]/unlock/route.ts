@@ -22,7 +22,14 @@ export async function POST(
     "client_ip";
   const ip = rawIp.split(",")[0].trim();
   const rateLimitKey = `pin_limit_${ip}_${slug}`;
-  const rateCheck = checkPinRateLimit(rateLimitKey);
+  const rateCheck = await checkPinRateLimit(rateLimitKey);
+
+  if (rateCheck.unavailable) {
+    return NextResponse.json(
+      { error: "Service temporarily unavailable. Please try again shortly." },
+      { status: 503 }
+    );
+  }
 
   if (!rateCheck.allowed) {
     return NextResponse.json(
@@ -66,11 +73,21 @@ export async function POST(
     }
   } else if (isSupabaseConfigured()) {
     try {
-      const { data, error } = await (supabaseAdminClient as any)
+      let { data, error } = await (supabaseAdminClient as any)
         .from("experiences")
         .select("pin_hash, pin_salt, is_pin_protected, status, expires_at")
         .eq("slug", slug)
         .single();
+
+      if (error && error.message?.includes("expires_at")) {
+        const retry = await (supabaseAdminClient as any)
+          .from("experiences")
+          .select("pin_hash, pin_salt, is_pin_protected, status")
+          .eq("slug", slug)
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (!error && data) {
         if (data.status === "expired" || isExperienceExpired(data.expires_at)) {
@@ -92,9 +109,11 @@ export async function POST(
             isValidPin = verifyPin(submittedPin, data.pin_hash, data.pin_salt);
           }
         }
+      } else if (error) {
+        console.error("[UNLOCK_SUPABASE_ERROR]", error);
       }
     } catch (e) {
-      console.warn("Supabase PIN verification query error:", e);
+      console.error("[UNLOCK_SUPABASE_EXCEPTION]", e);
     }
   }
 
@@ -103,7 +122,13 @@ export async function POST(
   }
 
   if (!isValidPin) {
-    recordFailedPinAttempt(rateLimitKey);
+    const recordResult = await recordFailedPinAttempt(rateLimitKey);
+    if (recordResult?.unavailable) {
+      return NextResponse.json(
+        { error: "Service temporarily unavailable. Please try again shortly." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: "Passcode incorrect. Please try again." },
       { status: 401 }
@@ -111,7 +136,7 @@ export async function POST(
   }
 
   // Verification succeeded: reset rate limit & set HttpOnly Auth Cookie for THIS SLUG ONLY
-  resetPinRateLimit(rateLimitKey);
+  await resetPinRateLimit(rateLimitKey);
   setRecipientAuthCookie(slug);
 
   return NextResponse.json({ success: true });

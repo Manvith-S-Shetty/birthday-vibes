@@ -11,6 +11,8 @@ export interface MediaItem {
   date?: string;
   location?: string;
   chapter?: string;
+  storagePath?: string;
+  previewUrl?: string;
 }
 
 export interface VoiceMessageData {

@@ -5,9 +5,10 @@ import { BirthdayDraft } from "@/types/draft";
 import { Display, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
 import { Check, Lock, ArrowLeft, RefreshCw, ExternalLink, Loader2, Clock, Mic } from "lucide-react";
-import { publishExperience, PublishResult } from "@/app/actions/experienceActions";
+import { publishExperience, PublishResult, PublishStage } from "@/app/actions/experienceActions";
 import { ShareDialog } from "@/components/share/ShareDialog";
 import { QRCodeCard } from "@/components/share/QRCodeCard";
+import { cn } from "@/lib/utils/cn";
 
 interface StepPublishPlaceholderProps {
   draft: BirthdayDraft;
@@ -51,6 +52,8 @@ export function StepPublishPlaceholder({
     () => PUBLISHED_CACHE.get(draft.id) || null
   );
   const [error, setError] = useState<string | null>(null);
+  const [currentStage, setCurrentStage] = useState<PublishStage>("preparing");
+  const [stageMessage, setStageMessage] = useState<string>("Preparing experience...");
 
   const isMountedRef = React.useRef(true);
   useEffect(() => {
@@ -70,6 +73,8 @@ export function StepPublishPlaceholder({
     async function handlePublish() {
       setIsPublishing(true);
       setError(null);
+      setCurrentStage("preparing");
+      setStageMessage("Preparing experience...");
 
       // Ensure consistent slug across initial publish and retries
       const targetSlug = getOrGenerateSlug(draft);
@@ -96,7 +101,16 @@ export function StepPublishPlaceholder({
       try {
         let publishPromise = IN_FLIGHT_PUBLISH.get(draft.id);
         if (!publishPromise) {
-          publishPromise = publishExperience(draft, voiceRecording?.blob);
+          publishPromise = publishExperience(
+            draft,
+            voiceRecording?.blob,
+            (progress) => {
+              if (isMountedRef.current) {
+                setCurrentStage(progress.stage);
+                setStageMessage(progress.message);
+              }
+            }
+          );
           IN_FLIGHT_PUBLISH.set(draft.id, publishPromise);
         }
 
@@ -112,6 +126,8 @@ export function StepPublishPlaceholder({
             });
           }
           if (isMountedRef.current) {
+            setCurrentStage("completed");
+            setStageMessage("Published successfully!");
             setPublishResult(cached);
           }
         } else {
@@ -165,7 +181,16 @@ export function StepPublishPlaceholder({
     }
 
     try {
-      const retryPromise = publishExperience(draft, voiceRecording?.blob);
+      const retryPromise = publishExperience(
+        draft,
+        voiceRecording?.blob,
+        (progress) => {
+          if (isMountedRef.current) {
+            setCurrentStage(progress.stage);
+            setStageMessage(progress.message);
+          }
+        }
+      );
       IN_FLIGHT_PUBLISH.set(draft.id, retryPromise);
 
       const res = await retryPromise;
@@ -179,6 +204,8 @@ export function StepPublishPlaceholder({
           });
         }
         if (isMountedRef.current) {
+          setCurrentStage("completed");
+          setStageMessage("Published successfully!");
           setPublishResult(cached);
         }
       } else {
@@ -218,7 +245,16 @@ export function StepPublishPlaceholder({
     setIsPublishing(true);
 
     try {
-      const res = await publishExperience(updatedDraft, undefined);
+      const res = await publishExperience(
+        updatedDraft,
+        undefined,
+        (progress) => {
+          if (isMountedRef.current) {
+            setCurrentStage(progress.stage);
+            setStageMessage(progress.message);
+          }
+        }
+      );
       if (res.success && res.slug && res.shareUrl) {
         const cached = { slug: res.slug, shareUrl: res.shareUrl };
         PUBLISHED_CACHE.set(draft.id, cached);
@@ -229,6 +265,8 @@ export function StepPublishPlaceholder({
           });
         }
         if (isMountedRef.current) {
+          setCurrentStage("completed");
+          setStageMessage("Published successfully!");
           setPublishResult(cached);
         }
       } else {
@@ -259,6 +297,25 @@ export function StepPublishPlaceholder({
   const slug = publishResult?.slug;
   const shareUrl = publishResult?.shareUrl;
 
+  const STAGES: { id: PublishStage; label: string }[] = [
+    { id: "preparing", label: "Preparing experience" },
+    { id: "uploading_photos", label: "Uploading photos" },
+    { id: "uploading_voice", label: "Uploading voice message" },
+    { id: "saving", label: "Saving experience" },
+    { id: "generating_link", label: "Generating share link" },
+    { id: "completed", label: "Completed" },
+  ];
+
+  const stageOrder: PublishStage[] = [
+    "preparing",
+    "uploading_photos",
+    "uploading_voice",
+    "saving",
+    "generating_link",
+    "completed",
+  ];
+  const currentStageIndex = stageOrder.indexOf(currentStage);
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in w-full max-w-xl mx-auto text-center py-4 sm:py-6 px-2 sm:px-0">
       <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--theme-accent-primary)] text-[var(--token-ink)] flex items-center justify-center mx-auto box-glow-lg shrink-0">
@@ -285,6 +342,44 @@ export function StepPublishPlaceholder({
           <strong className="text-[var(--theme-text-primary)]">{draft.recipientName}</strong>.
         </Body>
       </div>
+
+      {/* Publishing Progress Stages Checklist */}
+      {isPublishing && (
+        <div className="max-w-md mx-auto p-4 rounded-2xl border border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)] text-left space-y-3">
+          <div className="flex items-center justify-between text-xs font-semibold text-[var(--theme-text-primary)] pb-1 border-b border-[var(--theme-border-subtle)]">
+            <span>Publishing Progress</span>
+            <span className="text-[var(--theme-text-accent)]">{stageMessage}</span>
+          </div>
+          <div className="space-y-2">
+            {STAGES.map((st, idx) => {
+              const isPast = idx < currentStageIndex;
+              const isCurrent = idx === currentStageIndex;
+              return (
+                <div key={st.id} className="flex items-center gap-2.5 text-xs">
+                  {isPast ? (
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                  ) : isCurrent ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-[var(--theme-accent-primary)] shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border border-white/20 shrink-0" />
+                  )}
+                  <span
+                    className={cn(
+                      isPast && "text-[var(--theme-text-secondary)] line-through opacity-70",
+                      isCurrent && "font-medium text-[var(--theme-text-primary)]",
+                      !isPast && !isCurrent && "text-[var(--theme-text-secondary)]/50"
+                    )}
+                  >
+                    {st.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-3 sm:p-4 rounded-xl border border-red-500/30 bg-red-950/40 text-red-300 text-xs font-sans text-left space-y-3">

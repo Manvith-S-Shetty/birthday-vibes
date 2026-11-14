@@ -4,6 +4,7 @@ import { generateHighEntropySlug, hashPin, hashCreatorSecret } from "@/lib/secur
 import { localDraftRepository } from "@/lib/draft/LocalDraftRepository";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { supabaseAdminClient } from "@/lib/supabase/server";
+import { assertDraftOwnership } from "@/lib/security/draftOwnership";
 
 import { BirthdayDraft } from "@/types/draft";
 import { CURATED_MUSIC_TRACKS } from "@/lib/constants/music";
@@ -74,7 +75,7 @@ function getAudioExtensionFromMime(mimeType: string): string {
 
 export async function POST(request: Request) {
   console.time("[PUBLISH_TIMING] total_publish_route");
-  let body: { draftId?: string; draft?: BirthdayDraft } = {};
+  let body: any = {};
   let voiceAudio: File | null = null;
   let voiceMetadata: {
     mimeType?: string;
@@ -123,10 +124,13 @@ export async function POST(request: Request) {
   const creatorSecret = getOrCreateCreatorSessionToken();
   const creatorTokenHash = hashCreatorSecret(creatorSecret);
 
-  const draftId = body.draftId || "draft_default";
-  const draft = body.draft || (await localDraftRepository.getDraft(draftId));
+  const draftId = body.draftId || body.id || "draft_default";
 
-  if (!draft || !draft.recipientName.trim()) {
+  const draft: BirthdayDraft | null = body.recipientName
+    ? (body as BirthdayDraft)
+    : body.draft || (await localDraftRepository.getDraft(draftId));
+
+  if (!draft || !draft.recipientName?.trim()) {
     console.timeEnd("[PUBLISH_TIMING] total_publish_route");
     return NextResponse.json(
       { error: "Recipient name is required before publishing." },
@@ -146,11 +150,41 @@ export async function POST(request: Request) {
     );
   }
 
+  // Enforce draft ownership before publishing (verified across serverless instances)
+  const ownership = await assertDraftOwnership(draftId, creatorTokenHash);
+  if (!ownership.authorized) {
+    console.timeEnd("[PUBLISH_TIMING] total_publish_route");
+    return NextResponse.json(
+      { error: ownership.error || "Forbidden: You are not authorized to publish this draft." },
+      { status: 403 }
+    );
+  }
+
   // 3. Voice Message Metadata & Binary Validation
-  const voiceMimeType = (voiceMetadata?.mimeType || voiceAudio?.type || draft.voiceMessage?.mimeType || "").trim();
-  const voiceDurationMs = voiceMetadata?.durationMs ?? draft.voiceMessage?.durationMs ?? 0;
-  const voiceFileSize = voiceAudio?.size ?? 0;
-  const voiceTranscript = voiceMetadata?.transcript || draft.voiceMessage?.transcript || null;
+  let effectiveVoiceStoragePath =
+    body.voiceMessage?.storagePath ||
+    draft.voiceMessage?.storagePath;
+  const voiceMimeType = (
+    voiceMetadata?.mimeType ||
+    voiceAudio?.type ||
+    body.voiceMessage?.mimeType ||
+    draft.voiceMessage?.mimeType ||
+    ""
+  ).trim();
+  const voiceDurationMs =
+    voiceMetadata?.durationMs ??
+    body.voiceMessage?.durationMs ??
+    draft.voiceMessage?.durationMs ??
+    0;
+  const voiceFileSize =
+    voiceAudio?.size ??
+    body.voiceMessage?.fileSize ??
+    0;
+  const voiceTranscript =
+    voiceMetadata?.transcript ||
+    body.voiceMessage?.transcript ||
+    draft.voiceMessage?.transcript ||
+    null;
 
   if (voiceAudio) {
     const isAudioMime =
@@ -198,10 +232,43 @@ export async function POST(request: Request) {
   const expirationOption = draft.expirationOption || "never";
   const expiresAt = calculateExpiresAt(expirationOption, publishedAt);
 
+  let isNewlyCreatedExperience = false;
+
   if (isSupabaseConfigured()) {
     try {
       console.time("[PUBLISH_TIMING] total_supabase_pipeline");
-      // Upsert experience using ONLY creator_token_hash (NEVER raw secret)
+
+      // Handle voice binary storage upload if File body was provided
+      if (voiceAudio && !effectiveVoiceStoragePath) {
+        const ext = getAudioExtensionFromMime(voiceMimeType);
+        const targetVoiceId = experienceId || draftId || "voice";
+        effectiveVoiceStoragePath = `drafts/${targetVoiceId}/voice-message.${ext}`;
+        const buffer = Buffer.from(await voiceAudio.arrayBuffer());
+
+        let { error: uploadError } = await supabaseAdminClient.storage
+          .from("voice-messages")
+          .upload(effectiveVoiceStoragePath, buffer, {
+            contentType: voiceMimeType,
+            upsert: true,
+          });
+
+        if (uploadError && uploadError.message?.includes("Bucket not found")) {
+          await supabaseAdminClient.storage.createBucket("voice-messages", { public: false });
+          const retry = await supabaseAdminClient.storage
+            .from("voice-messages")
+            .upload(effectiveVoiceStoragePath, buffer, {
+              contentType: voiceMimeType,
+              upsert: true,
+            });
+          uploadError = retry.error;
+        }
+
+        if (uploadError) {
+          throw uploadError;
+        }
+      }
+
+      // Prepare standardized entity rows for atomic transaction
       const experienceRow: any = {
         creator_session_token: creatorTokenHash,
         slug,
@@ -217,7 +284,6 @@ export async function POST(request: Request) {
         is_pin_protected: isPinProtected,
         status: "published",
         current_step: "publish",
-        published_at: publishedAt.toISOString(),
         expires_at: expiresAt,
         expiration_option: expirationOption,
       };
@@ -225,288 +291,266 @@ export async function POST(request: Request) {
         experienceRow.id = experienceId;
       }
 
-      console.time("[PUBLISH_TIMING] 1. upsert_experience");
-      let { data: exp, error: expError } = await (supabaseAdminClient as any)
-        .from("experiences")
-        .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
-        .select()
-        .single();
+      // Prepare media rows (handling any legacy Base64 conversion if needed)
+      const preparedMediaRows: any[] = [];
+      if (draft.photos && draft.photos.length > 0) {
+        for (let idx = 0; idx < draft.photos.length; idx++) {
+          const p = draft.photos[idx];
+          let storagePath = p.storagePath || p.url;
+          let mimeType = (p as any).metadata?.mime_type || "image/jpeg";
+          let fileSize = (p as any).metadata?.file_size || 1024;
 
-      if (exp?.id) {
-        savedExperienceId = exp.id;
-      }
-
-      if (
-        expError &&
-        (expError.message?.includes("relationship") ||
-          expError.message?.includes("opening_style") ||
-          expError.message?.includes("memory_display_mode") ||
-          expError.message?.includes("expires_at") ||
-          expError.message?.includes("expiration_option"))
-      ) {
-        console.warn("Retrying experience upsert without optional schema extension columns:", expError.message);
-        delete experienceRow.relationship;
-        delete experienceRow.opening_style;
-        delete experienceRow.memory_display_mode;
-        delete experienceRow.expires_at;
-        delete experienceRow.expiration_option;
-        const retry = await (supabaseAdminClient as any)
-          .from("experiences")
-          .upsert(experienceRow, { onConflict: experienceRow.id ? "id" : "slug" })
-          .select()
-          .single();
-        exp = retry.data;
-        expError = retry.error;
-      }
-      console.timeEnd("[PUBLISH_TIMING] 1. upsert_experience");
-
-      if (expError) throw expError;
-
-      // Define independent persistence tasks to execute concurrently
-      const mediaTask = (async () => {
-        if (!draft.photos || draft.photos.length === 0) return;
-
-        console.time("[PUBLISH_TIMING] media_persistence");
-        const deletePromise = (supabaseAdminClient as any)
-          .from("media")
-          .delete()
-          .eq("experience_id", exp.id);
-
-        console.time("[PUBLISH_TIMING] photo_uploads");
-        const uploadPromises = draft.photos.map(async (p, idx) => {
-          let storagePath = p.url;
-          let mimeType = "image/jpeg";
-          let fileSize = 1024;
-
-          if (p.url && p.url.startsWith("data:")) {
-            const mimeMatch = p.url.match(/^data:([^;]+);base64,/);
-            if (mimeMatch) {
-              mimeType = mimeMatch[1];
-            }
+          if (storagePath && storagePath.startsWith("data:")) {
+            const mimeMatch = storagePath.match(/^data:([^;]+);base64,/);
+            if (mimeMatch) mimeType = mimeMatch[1];
             const ext = mimeType.split("/")[1] || "jpg";
-            const base64Data = p.url.split(";base64,").pop() || "";
+            const base64Data = storagePath.split(";base64,").pop() || "";
             const buffer = Buffer.from(base64Data, "base64");
             fileSize = buffer.length;
-
             const fileId = p.id || `photo_${idx + 1}`;
-            storagePath = `${exp.id}/${fileId}.${ext}`;
+            storagePath = `drafts/${draft.id || slug}/${fileId}.${ext}`;
 
             const { error: uploadError } = await supabaseAdminClient.storage
               .from("experience-media")
-              .upload(storagePath, buffer, {
-                contentType: mimeType,
-                upsert: true,
-              });
+              .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
 
-            if (uploadError) {
-              console.error("Supabase Storage photo upload failed:", storagePath, uploadError);
-              throw uploadError;
+            if (uploadError) throw uploadError;
+          } else {
+            if (
+              !storagePath ||
+              typeof storagePath !== "string" ||
+              storagePath.includes("..") ||
+              storagePath.includes("\\") ||
+              storagePath.startsWith("/")
+            ) {
+              throw new Error(`Invalid photo storage path: ${storagePath}`);
             }
           }
 
-          return {
-            idx,
-            item: {
-              experience_id: exp.id,
-              storage_path: storagePath,
-              type: "image",
-              caption: p.caption || null,
-              sort_order: idx + 1,
-              metadata: {
-                mime_type: mimeType,
-                file_size: fileSize,
-                date: p.date || null,
-                location: p.location || null,
-                chapter: p.chapter || null,
-              },
-            },
-          };
-        });
-
-        const uploadResults = await Promise.all(uploadPromises);
-        console.timeEnd("[PUBLISH_TIMING] photo_uploads");
-
-        uploadResults.sort((a, b) => a.idx - b.idx);
-        const mediaInserts = uploadResults.map((r) => r.item);
-
-        const { error: deleteError } = await deletePromise;
-        if (deleteError) throw deleteError;
-
-        if (mediaInserts.length > 0) {
-          console.time("[PUBLISH_TIMING] media_inserts");
-          const { error: mediaError } = await (supabaseAdminClient as any)
-            .from("media")
-            .insert(mediaInserts);
-          console.timeEnd("[PUBLISH_TIMING] media_inserts");
-
-          if (mediaError) throw mediaError;
-        }
-        console.timeEnd("[PUBLISH_TIMING] media_persistence");
-      })();
-
-      const musicTask = (async () => {
-        if (!draft.musicTitle) return;
-
-        console.time("[PUBLISH_TIMING] music_persistence");
-        const matchedTrack = CURATED_MUSIC_TRACKS.find(
-          (t) => t.id === draft.musicTrackId
-        );
-        await (supabaseAdminClient as any).from("music").delete().eq("experience_id", exp.id);
-        await (supabaseAdminClient as any).from("music").insert({
-          experience_id: exp.id,
-          source_type: "curated",
-          source_url: draft.musicUrl || null,
-          track_id: draft.musicTrackId || null,
-          title: draft.musicTitle,
-          artist: matchedTrack?.artist || null,
-          enabled: true,
-        });
-        console.timeEnd("[PUBLISH_TIMING] music_persistence");
-      })();
-
-      const voiceTask = (async () => {
-        if (voiceAudio) {
-          console.time("[PUBLISH_TIMING] voice_persistence");
-          const ext = getAudioExtensionFromMime(voiceMimeType);
-          const storagePath = `${exp.id}/voice-message.${ext}`;
-          const buffer = Buffer.from(await voiceAudio.arrayBuffer());
-
-          const existingVoicePromise = (supabaseAdminClient as any)
-            .from("voice_messages")
-            .select("storage_path")
-            .eq("experience_id", exp.id)
-            .maybeSingle();
-
-          console.time("[PUBLISH_TIMING] voice_storage_upload");
-          let { error: uploadError } = await supabaseAdminClient.storage
-            .from("voice-messages")
-            .upload(storagePath, buffer, {
-              contentType: voiceMimeType,
-              upsert: true,
-            });
-
-          if (
-            uploadError &&
-            (uploadError.message?.includes("Bucket not found") ||
-              (uploadError as any).statusCode === 404 ||
-              (uploadError as any).error === "Bucket not found")
-          ) {
-            try {
-              await supabaseAdminClient.storage.createBucket("voice-messages", { public: false });
-              const retry = await supabaseAdminClient.storage
-                .from("voice-messages")
-                .upload(storagePath, buffer, {
-                  contentType: voiceMimeType,
-                  upsert: true,
-                });
-              uploadError = retry.error;
-            } catch {
-              // Bucket creation retry fallback
-            }
-          }
-
-          if (uploadError) {
-            console.error("Supabase Storage voice message upload failed:", storagePath, uploadError);
-            throw uploadError;
-          }
-          console.timeEnd("[PUBLISH_TIMING] voice_storage_upload");
-
-          const { data: existingVoice } = await existingVoicePromise;
-          if (existingVoice && existingVoice.storage_path !== storagePath) {
-            await supabaseAdminClient.storage
-              .from("voice-messages")
-              .remove([existingVoice.storage_path]);
-          }
-
-          console.time("[PUBLISH_TIMING] voice_db_upsert");
-          const voiceRow = {
-            experience_id: exp.id,
+          preparedMediaRows.push({
             storage_path: storagePath,
-            mime_type: voiceMimeType,
-            duration_ms: Math.round(voiceDurationMs),
-            file_size_bytes: voiceFileSize,
-            transcript: voiceTranscript,
-            updated_at: new Date().toISOString(),
-          };
+            type: "image",
+            caption: p.caption || null,
+            sort_order: idx + 1,
+            metadata: {
+              mime_type: mimeType,
+              file_size: fileSize,
+              date: p.date || null,
+              location: p.location || null,
+              chapter: p.chapter || null,
+            },
+          });
+        }
+      }
 
-          const { error: voiceDbError } = await (supabaseAdminClient as any)
-            .from("voice_messages")
-            .upsert(voiceRow, { onConflict: "experience_id" });
+      // Prepare music row
+      const matchedTrack = CURATED_MUSIC_TRACKS.find((t) => t.id === draft.musicTrackId);
+      const preparedMusicRow = draft.musicTitle ? {
+        source_type: "curated",
+        source_url: draft.musicUrl || null,
+        track_id: draft.musicTrackId || null,
+        title: draft.musicTitle,
+        artist: matchedTrack?.artist || null,
+      } : null;
 
-          if (voiceDbError) throw voiceDbError;
-          console.timeEnd("[PUBLISH_TIMING] voice_db_upsert");
-          console.timeEnd("[PUBLISH_TIMING] voice_persistence");
-        } else if (!voiceAudio) {
-          const { data: existingVoice } = await (supabaseAdminClient as any)
-            .from("voice_messages")
-            .select("storage_path")
-            .eq("experience_id", exp.id)
-            .maybeSingle();
+      // Prepare voice row
+      let preparedVoiceRow: any = null;
+      if (effectiveVoiceStoragePath) {
+        if (
+          effectiveVoiceStoragePath.includes("..") ||
+          effectiveVoiceStoragePath.includes("\\") ||
+          effectiveVoiceStoragePath.startsWith("/")
+        ) {
+          throw new Error(`Invalid voice message storage path: ${effectiveVoiceStoragePath}`);
+        }
 
-          if (existingVoice) {
-            await supabaseAdminClient.storage
-              .from("voice-messages")
-              .remove([existingVoice.storage_path]);
+        preparedVoiceRow = {
+          storage_path: effectiveVoiceStoragePath,
+          mime_type: voiceMimeType || "audio/webm",
+          duration_ms: Math.round(voiceDurationMs),
+          file_size_bytes: voiceFileSize || 1024,
+          transcript: voiceTranscript,
+        };
+      }
 
-            await (supabaseAdminClient as any)
+      // Prepare moments rows
+      const VALID_MOMENT_TYPES = new Set([
+        "mystery_gift", "memory_quiz", "birthday_roulette",
+        "hidden_message", "birthday_coupon", "countdown", "wish_moment"
+      ]);
+      const preparedMomentsRows = (draft.moments || [])
+        .filter((m) => m && typeof m === "object" && m.enabled !== false && VALID_MOMENT_TYPES.has(m.momentType))
+        .map((m, idx) => ({
+          moment_type: m.momentType,
+          config_json: m.config && typeof m.config === "object" ? m.config : {},
+          sort_order: typeof m.sortOrder === "number" ? m.sortOrder : idx + 1,
+        }));
+
+      // =========================================================================
+      // STRATEGY A: Invocation of PostgreSQL publish_experience_transactional RPC
+      // Guarantees genuine ACID database transaction across experiences, media, voice, music, moments
+      // =========================================================================
+      let rpcExecutedSuccessfully = false;
+      try {
+        console.time("[PUBLISH_TIMING] transactional_rpc");
+        const { data: rpcData, error: rpcError } = await (supabaseAdminClient as any).rpc(
+          "publish_experience_transactional",
+          {
+            p_experience_row: experienceRow,
+            p_media_rows: preparedMediaRows,
+            p_music_row: preparedMusicRow,
+            p_voice_row: preparedVoiceRow,
+            p_moments_rows: preparedMomentsRows,
+          }
+        );
+
+        if (!rpcError && rpcData?.success) {
+          rpcExecutedSuccessfully = true;
+          savedExperienceId = rpcData.id;
+          console.log("[PUBLISH] Successfully executed publish_experience_transactional RPC.");
+        } else if (rpcError) {
+          const isRpcMissing =
+            rpcError.code === "PGRST202" ||
+            rpcError.code === "42883" ||
+            rpcError.message?.toLowerCase().includes("could not find the function") ||
+            rpcError.message?.toLowerCase().includes("does not exist") ||
+            rpcError.message?.toLowerCase().includes("schema cache");
+
+          if (isRpcMissing) {
+            console.info("[PUBLISH] RPC not available in DB schema, falling back to staged persistence:", rpcError.message);
+          } else {
+            console.error("[PUBLISH] Transactional RPC execution error:", rpcError);
+            throw new Error(rpcError.message || "Atomic publishing transaction failed");
+          }
+        }
+        console.timeEnd("[PUBLISH_TIMING] transactional_rpc");
+      } catch (rpcErr: any) {
+        if (
+          rpcErr?.message &&
+          !rpcErr.message.toLowerCase().includes("does not exist") &&
+          !rpcErr.message.toLowerCase().includes("schema cache") &&
+          !rpcErr.message.toLowerCase().includes("could not find the function")
+        ) {
+          throw rpcErr;
+        }
+        console.info("[PUBLISH] RPC invocation exception, using staged persistence fallback:", rpcErr);
+      }
+
+      // =========================================================================
+      // STRATEGY B: Staged Two-Phase Persistence Fallback with Compensating Rollback
+      // Used when RPC migration has not yet been applied to the remote database
+      // =========================================================================
+      if (!rpcExecutedSuccessfully) {
+        console.time("[PUBLISH_TIMING] staged_persistence_fallback");
+        // Phase 1: Upsert experience in 'draft' status so incomplete records are never visible
+        const stagedRow = { ...experienceRow, status: "draft" };
+
+        let { data: exp, error: expError } = await (supabaseAdminClient as any)
+          .from("experiences")
+          .upsert(stagedRow, { onConflict: stagedRow.id ? "id" : "slug" })
+          .select()
+          .single();
+
+        if (exp?.id) {
+          savedExperienceId = exp.id;
+          if (!experienceId) isNewlyCreatedExperience = true;
+        }
+
+        if (
+          expError &&
+          (expError.message?.includes("relationship") ||
+            expError.message?.includes("opening_style") ||
+            expError.message?.includes("memory_display_mode") ||
+            expError.message?.includes("expires_at") ||
+            expError.message?.includes("expiration_option"))
+        ) {
+          delete stagedRow.relationship;
+          delete stagedRow.opening_style;
+          delete stagedRow.memory_display_mode;
+          delete stagedRow.expires_at;
+          delete stagedRow.expiration_option;
+          const retry = await (supabaseAdminClient as any)
+            .from("experiences")
+            .upsert(stagedRow, { onConflict: stagedRow.id ? "id" : "slug" })
+            .select()
+            .single();
+          exp = retry.data;
+          expError = retry.error;
+        }
+
+        if (expError) throw expError;
+        if (exp?.id) savedExperienceId = exp.id;
+
+        // Phase 2: Execute child persistence tasks
+        const mediaTask = (async () => {
+          if (preparedMediaRows.length === 0) return;
+          await (supabaseAdminClient as any).from("media").delete().eq("experience_id", exp.id);
+          const inserts = preparedMediaRows.map((r) => ({ ...r, experience_id: exp.id }));
+          const { error } = await (supabaseAdminClient as any).from("media").insert(inserts);
+          if (error) throw error;
+        })();
+
+        const musicTask = (async () => {
+          if (!preparedMusicRow) return;
+          await (supabaseAdminClient as any).from("music").delete().eq("experience_id", exp.id);
+          const { error } = await (supabaseAdminClient as any)
+            .from("music")
+            .insert({ ...preparedMusicRow, experience_id: exp.id });
+          if (error) throw error;
+        })();
+
+        const voiceTask = (async () => {
+          if (preparedVoiceRow) {
+            const { error } = await (supabaseAdminClient as any)
               .from("voice_messages")
-              .delete()
-              .eq("experience_id", exp.id);
+              .upsert(
+                { ...preparedVoiceRow, experience_id: exp.id, updated_at: new Date().toISOString() },
+                { onConflict: "experience_id" }
+              );
+            if (error) throw error;
+          } else {
+            await (supabaseAdminClient as any).from("voice_messages").delete().eq("experience_id", exp.id);
           }
-        }
-      })();
+        })();
 
-      const momentsTask = (async () => {
-        console.time("[PUBLISH_TIMING] moments_persistence");
-        console.time("[PUBLISH_TIMING] delete_existing_moments");
-        const { error: deleteMomentsError } = await (supabaseAdminClient as any)
-          .from("experience_moments")
-          .delete()
-          .eq("experience_id", exp.id);
-        console.timeEnd("[PUBLISH_TIMING] delete_existing_moments");
-
-        if (deleteMomentsError) throw deleteMomentsError;
-
-        if (Array.isArray(draft.moments) && draft.moments.length > 0) {
-          const VALID_MOMENT_TYPES = new Set([
-            "mystery_gift",
-            "memory_quiz",
-            "birthday_roulette",
-            "hidden_message",
-            "birthday_coupon",
-            "countdown",
-            "wish_moment",
-          ]);
-
-          const momentInserts = draft.moments
-            .filter((m) => m && typeof m === "object" && m.enabled !== false && VALID_MOMENT_TYPES.has(m.momentType))
-            .map((m, idx) => ({
-              experience_id: exp.id,
-              moment_type: m.momentType,
-              config_json: m.config && typeof m.config === "object" ? m.config : {},
-              sort_order: typeof m.sortOrder === "number" ? m.sortOrder : idx + 1,
-              enabled: true,
-            }));
-
-          if (momentInserts.length > 0) {
-            console.time("[PUBLISH_TIMING] insert_moments");
-            const { error: momentsError } = await (supabaseAdminClient as any)
-              .from("experience_moments")
-              .insert(momentInserts);
-            console.timeEnd("[PUBLISH_TIMING] insert_moments");
-
-            if (momentsError) throw momentsError;
+        const momentsTask = (async () => {
+          await (supabaseAdminClient as any).from("experience_moments").delete().eq("experience_id", exp.id);
+          if (preparedMomentsRows.length > 0) {
+            const inserts = preparedMomentsRows.map((m) => ({ ...m, experience_id: exp.id, enabled: true }));
+            const { error } = await (supabaseAdminClient as any).from("experience_moments").insert(inserts);
+            if (error) throw error;
           }
-        }
-        console.timeEnd("[PUBLISH_TIMING] moments_persistence");
-      })();
+        })();
 
-      // Run all independent persistence steps concurrently
-      await Promise.all([mediaTask, musicTask, voiceTask, momentsTask]);
+        await Promise.all([mediaTask, musicTask, voiceTask, momentsTask]);
+
+        // Phase 3: Atomic commit transition
+        const { error: commitError } = await (supabaseAdminClient as any)
+          .from("experiences")
+          .update({
+            status: "published",
+            published_at: publishedAt.toISOString(),
+            updated_at: new Date().toISOString(),
+            current_step: "publish",
+          })
+          .eq("id", exp.id);
+
+        if (commitError) throw commitError;
+        console.timeEnd("[PUBLISH_TIMING] staged_persistence_fallback");
+      }
+
       console.timeEnd("[PUBLISH_TIMING] total_supabase_pipeline");
     } catch (e: any) {
       console.error("Supabase publish error:", e);
       console.timeEnd("[PUBLISH_TIMING] total_publish_route");
+
+      // Compensating rollback for failed staged publish
+      if (savedExperienceId && isNewlyCreatedExperience) {
+        try {
+          await (supabaseAdminClient as any).from("experiences").delete().eq("id", savedExperienceId);
+        } catch {}
+      }
+
       return NextResponse.json(
         { error: e?.message || e?.details || "Failed to persist experience to database. Please try again." },
         { status: 500 }

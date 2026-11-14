@@ -42,6 +42,7 @@ export interface VoiceMessageDraftState {
   mimeType: string;
   transcript?: string;
   updatedAt?: string;
+  storagePath?: string;
 }
 
 export type ExpirationOption = "7d" | "30d" | "1y" | "never";

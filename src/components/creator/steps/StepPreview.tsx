@@ -9,6 +9,8 @@ import { ExperienceData } from "@/types/experience";
 import { ArrowLeft, ArrowRight, AlertTriangle, Mic, Trash2 } from "lucide-react";
 
 import { VoiceRecordingCache } from "@/lib/draft/VoiceRecordingCache";
+import { fetchPreviewUrls } from "@/lib/media/uploadHelper";
+import { MediaPreviewCache } from "@/lib/media/previewCache";
 
 interface StepPreviewProps {
   draft: BirthdayDraft;
@@ -63,6 +65,37 @@ export function StepPreview({ draft, onUpdate, onNavigateToVoice, onNext, onPrev
       }
     : undefined;
 
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const internalPaths = draft.photos
+      .map((p) => p.storagePath || p.url)
+      .filter(
+        (path) =>
+          path &&
+          !path.startsWith("data:") &&
+          !path.startsWith("blob:") &&
+          !path.startsWith("http://") &&
+          !path.startsWith("https://")
+      );
+
+    if (internalPaths.length > 0) {
+      fetchPreviewUrls(internalPaths).then((urls) => {
+        setPreviewUrls((prev) => ({ ...prev, ...urls }));
+      });
+    }
+  }, [draft.photos]);
+
+  const resolvedPhotos = draft.photos.map((p) => {
+    const key = p.storagePath || p.url;
+    const resolvedUrl =
+      previewUrls[key] ||
+      MediaPreviewCache.get(key) ||
+      p.previewUrl ||
+      p.url;
+    return { ...p, url: resolvedUrl };
+  });
+
   const experiencePayload: ExperienceData = {
     id: draft.id,
     slug: draft.recipientName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "birthday-preview",
@@ -73,7 +106,7 @@ export function StepPreview({ draft, onUpdate, onNavigateToVoice, onNext, onPrev
     memoryDisplayMode: draft.memoryDisplayMode || "grid",
     themeId: draft.themeId,
     personalMessage: draft.personalMessage || "Wishing you a birthday filled with light and joy.",
-    photos: draft.photos,
+    photos: resolvedPhotos,
     musicTitle: draft.musicTitle,
     musicUrl: draft.musicUrl,
     voiceMessage,

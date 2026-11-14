@@ -1,10 +1,8 @@
 -- Phase V2-C.3: Supabase Database Contract for Voice Messages
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 1. Create voice_messages table
 CREATE TABLE IF NOT EXISTS voice_messages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   experience_id UUID UNIQUE NOT NULL REFERENCES experiences(id) ON DELETE CASCADE,
   storage_path VARCHAR(512) NOT NULL,
   mime_type VARCHAR(64) NOT NULL,

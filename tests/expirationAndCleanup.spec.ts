@@ -108,7 +108,7 @@ test.describe("Wishlight V2-H — Expiration & Automatic Cleanup Spec", () => {
     const draftData: BirthdayDraft = {
       id: activeDraftId,
       recipientName: "Maya",
-      themeId: "velvet-noir",
+      themeId: "midnight-cinema",
       photos: [],
       personalMessage: "Happy 30th Birthday Maya!",
       expirationOption: "30d",

@@ -3,9 +3,27 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
+      // Supabase Storage — private media served via signed URLs
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/**',
+      },
+      // Supabase alternate CDN domain
+      {
+        protocol: 'https',
+        hostname: '*.supabase.in',
+        pathname: '/storage/v1/**',
+      },
+      // Demo seed content (SeedExperienceRepository demo photos)
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      // Demo seed content (SeedExperienceRepository demo audio thumbnails)
+      {
+        protocol: 'https',
+        hostname: 'cdn.pixabay.com',
       },
     ],
   },

@@ -49,11 +49,21 @@ export class SupabaseExperienceRepository {
 
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await (supabaseAdminClient as any)
+        let { data, error } = await (supabaseAdminClient as any)
           .from("experiences")
           .select("slug, recipient_name, birthday_date, theme_id, is_pin_protected, status, expires_at, expiration_option")
           .eq("slug", slug)
           .single();
+
+        if (error && (error.message?.includes("expiration_option") || error.message?.includes("expires_at"))) {
+          const retry = await (supabaseAdminClient as any)
+            .from("experiences")
+            .select("slug, recipient_name, birthday_date, theme_id, is_pin_protected, status")
+            .eq("slug", slug)
+            .single();
+          data = retry.data;
+          error = retry.error;
+        }
 
         if (!error && data) {
           const expired = Boolean(data.status === "expired" || isExperienceExpired(data.expires_at));
@@ -183,9 +193,13 @@ export class SupabaseExperienceRepository {
             let voiceMessage: VoiceMessageData | undefined = undefined;
 
             if (voiceRow && voiceRow.storage_path) {
+              let storageKey = voiceRow.storage_path;
+              if (storageKey.startsWith("voice-messages/")) {
+                storageKey = storageKey.replace("voice-messages/", "");
+              }
               const { data: signed, error: signError } = await supabaseAdminClient.storage
                 .from("voice-messages")
-                .createSignedUrl(voiceRow.storage_path, 3600);
+                .createSignedUrl(storageKey, 3600);
 
               if (!signError && signed?.signedUrl) {
                 voiceMessage = {

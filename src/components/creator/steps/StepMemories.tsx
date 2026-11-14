@@ -23,8 +23,13 @@ import {
   ChevronUp,
   Clock,
   Sparkles,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { uploadPhotoFile, fetchPreviewUrls } from "@/lib/media/uploadHelper";
+import { MediaPreviewCache } from "@/lib/media/previewCache";
 
 interface StepMemoriesProps {
   draft: BirthdayDraft;
@@ -51,10 +56,43 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>("");
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [failedUploads, setFailedUploads] = useState<{ id: string; file: File; error: string }[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   const currentMode: MemoryDisplayMode = draft.memoryDisplayMode || "grid";
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Resolve signed preview URLs for any stored photos on mount / update
+  React.useEffect(() => {
+    const internalPaths = draft.photos
+      .map((p) => p.storagePath || p.url)
+      .filter(
+        (path) =>
+          path &&
+          !path.startsWith("data:") &&
+          !path.startsWith("blob:") &&
+          !path.startsWith("http://") &&
+          !path.startsWith("https://")
+      );
+
+    if (internalPaths.length > 0) {
+      fetchPreviewUrls(internalPaths).then((urls) => {
+        setPreviewUrls((prev) => ({ ...prev, ...urls }));
+      });
+    }
+  }, [draft.photos]);
+
+  const getPhotoDisplayUrl = (item: MediaItem): string => {
+    const key = item.storagePath || item.url;
+    return (
+      previewUrls[key] ||
+      MediaPreviewCache.get(key) ||
+      item.previewUrl ||
+      item.url
+    );
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -81,33 +119,68 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
 
     if (validFiles.length === 0) return;
 
-    let processedCount = 0;
+    setUploadProgress({ current: 0, total: validFiles.length });
     const newItems: MediaItem[] = [];
     const currentCount = draft.photos.length;
 
-    validFiles.forEach((file, idx) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newItems.push({
-            id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${idx}`,
-            url: event.target.result as string,
-            type: "image",
-            caption: file.name.replace(/\.[^/.]+$/, ""),
-            sortOrder: currentCount + idx + 1,
-          });
-        }
-        processedCount++;
-        if (processedCount === validFiles.length) {
-          onUpdate({ photos: [...draft.photos, ...newItems] });
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }
+    for (let idx = 0; idx < validFiles.length; idx++) {
+      const file = validFiles[idx];
+      setUploadProgress({ current: idx + 1, total: validFiles.length });
+
+      try {
+        const result = await uploadPhotoFile(draft.id, file);
+        const itemId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${idx}`;
+        newItems.push({
+          id: itemId,
+          url: result.path,
+          storagePath: result.path,
+          previewUrl: result.previewUrl,
+          type: "image",
+          caption: file.name.replace(/\.[^/.]+$/, ""),
+          sortOrder: currentCount + newItems.length + 1,
+        });
+        setPreviewUrls((prev) => ({ ...prev, [result.path]: result.previewUrl }));
+      } catch (err: any) {
+        console.error("Failed to upload photo:", file.name, err);
+        const failId = `fail_${Date.now()}_${idx}`;
+        setFailedUploads((prev) => [
+          ...prev,
+          { id: failId, file, error: err?.message || "Storage upload failed" },
+        ]);
+      }
+    }
+
+    setUploadProgress(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (newItems.length > 0) {
+      onUpdate({ photos: [...draft.photos, ...newItems] });
+    }
+  };
+
+  const handleRetryUpload = async (failed: { id: string; file: File; error: string }) => {
+    setFailedUploads((prev) => prev.filter((f) => f.id !== failed.id));
+    setError("");
+    try {
+      const result = await uploadPhotoFile(draft.id, failed.file);
+      const itemId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newItem: MediaItem = {
+        id: itemId,
+        url: result.path,
+        storagePath: result.path,
+        previewUrl: result.previewUrl,
+        type: "image",
+        caption: failed.file.name.replace(/\.[^/.]+$/, ""),
+        sortOrder: draft.photos.length + 1,
       };
-      reader.onerror = () => {
-        setError("Failed to read image file.");
-      };
-      reader.readAsDataURL(file);
-    });
+      setPreviewUrls((prev) => ({ ...prev, [result.path]: result.previewUrl }));
+      onUpdate({ photos: [...draft.photos, newItem] });
+    } catch (err: any) {
+      setFailedUploads((prev) => [
+        ...prev,
+        { ...failed, error: err?.message || "Storage upload failed" },
+      ]);
+    }
   };
 
   const handleRemove = (id: string) => {
@@ -260,11 +333,44 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
         </div>
         <div>
           <span className="font-serif text-base font-medium text-[var(--theme-text-primary)] block">
-            Click to upload photos ({draft.photos.length}/12)
+            {uploadProgress
+              ? `Uploading photos (${uploadProgress.current}/${uploadProgress.total})...`
+              : `Click to upload photos (${draft.photos.length}/12)`}
           </span>
           <Caption>PNG, JPG, WebP up to 10MB each</Caption>
         </div>
       </div>
+
+      {/* Upload Progress Banner */}
+      {uploadProgress && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-[var(--theme-border-subtle)] bg-[var(--theme-bg-secondary)] text-xs text-[var(--theme-text-primary)]">
+          <Loader2 className="w-4 h-4 animate-spin text-[var(--theme-accent-primary)] shrink-0" />
+          <span>Uploading photo {uploadProgress.current} of {uploadProgress.total} directly to storage...</span>
+        </div>
+      )}
+
+      {/* Failed Uploads Banner with Retry */}
+      {failedUploads.length > 0 && (
+        <div className="space-y-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs">
+          <div className="flex items-center gap-1.5 text-rose-300 font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Some photos failed to upload:</span>
+          </div>
+          {failedUploads.map((failed) => (
+            <div key={failed.id} className="flex items-center justify-between gap-2 pl-5 text-rose-200">
+              <span className="truncate">{failed.file.name}: {failed.error}</span>
+              <button
+                type="button"
+                onClick={() => handleRetryUpload(failed)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-medium shrink-0 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && <p className="text-xs text-rose-400 font-sans text-center">{error}</p>}
 
@@ -301,7 +407,7 @@ export function StepMemories({ draft, onUpdate, onNext, onPrev }: StepMemoriesPr
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-black/20 shrink-0 border border-white/10">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={item.url}
+                          src={getPhotoDisplayUrl(item)}
                           alt={item.caption || "Uploaded photo"}
                           className="w-full h-full object-cover"
                         />

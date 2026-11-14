@@ -52,10 +52,12 @@ export default defineConfig({
    * on port 3000 (e.g., you started it manually), Playwright will reuse it
    * rather than starting a second instance.
    */
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  webServer: process.env.NO_WEBSERVER
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: "http://localhost:3000",
+        reuseExistingServer: true,
+        timeout: 60_000,
+      },
 });
