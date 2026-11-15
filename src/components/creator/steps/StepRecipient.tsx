@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { BirthdayDraft, RecipientRelationship } from "@/types/draft";
 import { Display, Heading, Body, Eyebrow, Caption } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
-import { User, Calendar, ArrowRight, Heart, Sparkles, Home, Users, Briefcase, Star, Check } from "lucide-react";
+import { User, Calendar, ArrowRight, Heart, Sparkles, Home, Users, HeartHandshake, Briefcase, Star, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface StepRecipientProps {
@@ -25,6 +25,7 @@ const RELATIONSHIP_OPTIONS: RelationshipOption[] = [
   { id: "best_friend", label: "Best Friend", description: "Closest confidant & partner in crime", icon: Sparkles },
   { id: "parent", label: "Parent", description: "Mom, dad, or guardian figure", icon: Home },
   { id: "sibling", label: "Sibling", description: "Brother, sister, or lifelong kin", icon: Users },
+  { id: "relative", label: "Relative", description: "Aunt, uncle, cousin, or cherished family", icon: HeartHandshake },
   { id: "colleague", label: "Colleague", description: "Coworker, mentor, or team member", icon: Briefcase },
   { id: "other", label: "Other", description: "Cherished friend or special person", icon: Star },
 ];

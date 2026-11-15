@@ -17,6 +17,7 @@ import { GET as downloadFile } from "../src/app/api/admin/files/download/route";
 import { POST as backupExport } from "../src/app/api/admin/backup/route";
 import { GET as getAuditLogs } from "../src/app/api/admin/logs/route";
 import { POST as adminLogin } from "../src/app/api/admin/auth/login/route";
+import { middleware } from "../src/middleware";
 import { _clearLoginAttemptsForTesting } from "../src/lib/admin/rateLimit";
 import * as serverModule from "../src/lib/supabase/server";
 import * as clientModule from "../src/lib/supabase/client";
@@ -515,6 +516,59 @@ test.describe("Production-Quality Admin Panel Security & Management Suite", () =
     const body = await lockedRes.json();
     expect(body.error).toContain("Too many failed login attempts");
     _clearLoginAttemptsForTesting();
+  });
+
+  test("8.3: Authenticates successfully with valid credentials and sets session cookie", async () => {
+    _clearLoginAttemptsForTesting();
+    const originalPassword = process.env.ADMIN_PASSWORD;
+    const originalEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = "owner@wishscene.com";
+    process.env.ADMIN_PASSWORD = "test-admin-password-1234";
+    try {
+      const req = new NextRequest("http://localhost:3000/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "owner@wishscene.com", password: "test-admin-password-1234" }),
+      });
+
+      const res = await adminLogin(req);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.admin.email).toBe("owner@wishscene.com");
+
+      const cookieHeader = res.headers.get("set-cookie") || "";
+      expect(cookieHeader).toContain(ADMIN_COOKIE_NAME);
+    } finally {
+      process.env.ADMIN_PASSWORD = originalPassword;
+      process.env.ADMIN_EMAIL = originalEmail;
+      _clearLoginAttemptsForTesting();
+    }
+  });
+
+  test("8.4: Rejects malformed JSON payload with 400 and structured JSON", async () => {
+    _clearLoginAttemptsForTesting();
+    const req = new NextRequest("http://localhost:3000/api/admin/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not-a-json-string{",
+    });
+
+    const res = await adminLogin(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Invalid request payload.");
+    _clearLoginAttemptsForTesting();
+  });
+
+  test("8.5: Hardened URL: obsolete /admin/login route is rejected with 404 by middleware", async () => {
+    const req = new NextRequest("http://localhost:3000/admin/login");
+    const res = middleware(req);
+    expect(res.status).toBe(404);
+
+    const normalReq = new NextRequest("http://localhost:3000/wishlight-control/entry");
+    const normalRes = middleware(normalReq);
+    expect(normalRes.status).toBe(200);
   });
 
   // =========================================================================

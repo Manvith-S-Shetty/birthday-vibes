@@ -40,10 +40,10 @@ export default function AdminNav({ userEmail }: AdminNavProps) {
     setLoggingOut(true);
     try {
       await fetch("/api/admin/auth/logout", { method: "POST" });
-      router.push("/admin/login");
+      router.push("/wishlight-control/entry");
       router.refresh();
     } catch {
-      router.push("/admin/login");
+      router.push("/wishlight-control/entry");
     }
   };
 

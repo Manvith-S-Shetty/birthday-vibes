@@ -14,7 +14,7 @@ interface CinematicIntroSceneProps {
   onNext: () => void;
 }
 
-function getRelationshipDedication(relationship?: RecipientRelationship): string {
+export function getRelationshipDedication(relationship?: RecipientRelationship): string {
   switch (relationship) {
     case "partner":
       return "To the Love of My Life";
@@ -24,6 +24,8 @@ function getRelationshipDedication(relationship?: RecipientRelationship): string
       return "To the Guiding Light of Our Family";
     case "sibling":
       return "To My Lifelong Companion & Partner-in-Crime";
+    case "relative":
+      return "To My Wonderful Family & Cherished Relative";
     case "colleague":
       return "To an Exceptional Teammate & Friend";
     case "other":
@@ -32,7 +34,7 @@ function getRelationshipDedication(relationship?: RecipientRelationship): string
   }
 }
 
-function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelationship): string {
+export function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelationship): string {
   if (style === "warm-letter") {
     switch (relationship) {
       case "partner":
@@ -43,6 +45,8 @@ function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelati
         return "With deepest love, respect, and enduring gratitude";
       case "sibling":
         return "Celebrating the irreplaceable bond only we share";
+      case "relative":
+        return "With deepest family affection and enduring gratitude";
       case "colleague":
         return "With sincere appreciation and warmest birthday wishes";
       default:
@@ -60,6 +64,8 @@ function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelati
         return "Celebrating a lifetime of love, warmth, and generosity!";
       case "sibling":
         return "Cheers to the most fun, unforgettable person in the world!";
+      case "relative":
+        return "Cheers to family, good times, and celebrating you!";
       case "colleague":
         return "Cheers to an outstanding colleague and wonderful person!";
       default:
@@ -77,6 +83,8 @@ function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelati
       return "Honoring a lifetime of devotion, strength, and love.";
     case "sibling":
       return "Starring my favorite partner-in-crime.";
+    case "relative":
+      return "Honoring a wonderful part of our family story.";
     case "colleague":
       return "Honoring a brilliant teammate and friend.";
     default:
@@ -84,7 +92,7 @@ function getOpeningTagline(style: OpeningStyleId, relationship?: RecipientRelati
   }
 }
 
-function getOpeningQuote(style: OpeningStyleId, relationship?: RecipientRelationship): string {
+export function getOpeningQuote(style: OpeningStyleId, relationship?: RecipientRelationship): string {
   if (style === "warm-letter") {
     switch (relationship) {
       case "partner":
@@ -95,6 +103,8 @@ function getOpeningQuote(style: OpeningStyleId, relationship?: RecipientRelation
         return "Thank you for being my constant anchor and inspiration. Today we celebrate the wonderful, generous heart you have.";
       case "sibling":
         return "From childhood memories to every milestone ahead, having you by my side means the absolute world. Happy Birthday.";
+      case "relative":
+        return "Having you in our family has brought so much warmth, comfort, and laughter over the years. Wishing you the happiest birthday.";
       case "colleague":
         return "Thank you for bringing positivity and brilliance to every endeavor. Wishing you a year of immense success and happiness.";
       default:
@@ -112,6 +122,8 @@ function getOpeningQuote(style: OpeningStyleId, relationship?: RecipientRelation
         return "May your day be filled with music, laughter, and all your favorite things in the world. You deserve the best celebration!";
       case "sibling":
         return "Time to turn up the celebration and make this birthday completely unforgettable. Cheers to you!";
+      case "relative":
+        return "May your special day be packed with love, sweet surprises, and everyone who loves you dearly!";
       case "colleague":
         return "May your birthday bring as much energy and joy as you bring to everyone you work with. Celebrate big today!";
       default:
@@ -129,6 +141,8 @@ function getOpeningQuote(style: OpeningStyleId, relationship?: RecipientRelation
       return "A lifetime of quiet sacrifices, endless warmth, and unwavering love. Today, we put your story center stage.";
     case "sibling":
       return "From the very beginning to every new horizon ahead. Today, we celebrate someone truly one-of-a-kind.";
+    case "relative":
+      return "Family is where our story begins and love never ends. Today, we put your warmth center stage.";
     case "colleague":
       return "Excellence, warmth, and inspiring energy every single day. Today, we celebrate your special milestone.";
     default:

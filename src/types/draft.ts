@@ -18,6 +18,7 @@ export type RecipientRelationship =
   | "best_friend"
   | "parent"
   | "sibling"
+  | "relative"
   | "colleague"
   | "other";
 
