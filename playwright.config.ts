@@ -33,7 +33,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
 
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3005",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "off",
@@ -49,14 +49,14 @@ export default defineConfig({
   /**
    * webServer: starts `npm run dev` automatically before the test run.
    * `reuseExistingServer: true` means if a dev server is already running
-   * on port 3000 (e.g., you started it manually), Playwright will reuse it
+   * on port 3005 (e.g., you started it manually), Playwright will reuse it
    * rather than starting a second instance.
    */
   webServer: process.env.NO_WEBSERVER
     ? undefined
     : {
-        command: "npm run dev",
-        url: "http://localhost:3000",
+        command: "npm run dev -- -p 3005",
+        url: "http://localhost:3005",
         reuseExistingServer: true,
         timeout: 60_000,
       },

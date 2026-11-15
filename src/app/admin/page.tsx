@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin/auth";
@@ -19,7 +19,7 @@ import {
 export default async function AdminDashboardOverview() {
   const session = await getAdminSession();
   if (!session) {
-    redirect("/admin/login");
+    redirect("/wishlight-control/entry");
   }
 
   let totalExperiences = 0;

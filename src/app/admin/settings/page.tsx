@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ import {
 export default async function AdminSettingsPage() {
   const session = await getAdminSession();
   if (!session) {
-    redirect("/admin/login");
+    redirect("/wishlight-control/entry");
   }
 
   const configured = isSupabaseConfigured();
