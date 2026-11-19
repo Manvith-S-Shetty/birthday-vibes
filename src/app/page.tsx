@@ -1,10 +1,16 @@
+"use client";
+
+import React, { useState } from "react";
 import { Display, Body, Eyebrow } from "@/components/ui/Typography";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
-import { Sparkles, ArrowRight, PlusCircle, Palette } from "lucide-react";
+import { Sparkles, ArrowRight, PlusCircle, Play } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { MotionFilmModal } from "@/components/landing/MotionFilmModal";
 
 export default function Home() {
+  const [isFilmOpen, setIsFilmOpen] = useState(false);
+
   return (
     <div className="min-h-screen flex flex-col justify-between bg-film-grain text-[var(--theme-text-primary)]">
       {/* Top Navigation Bar with Direct Create Option */}
@@ -42,9 +48,14 @@ export default function Home() {
               <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
 
-            <Button href="/design-system" variant="champagne-outline" size="lg">
-              <Palette className="w-4 h-4 mr-1" />
-              <span>Explore Design System</span>
+            <Button
+              type="button"
+              variant="champagne-outline"
+              size="lg"
+              onClick={() => setIsFilmOpen(true)}
+            >
+              <Play className="w-4 h-4 mr-1 fill-current" />
+              <span>Watch the Film</span>
             </Button>
           </div>
         </Container>
@@ -54,7 +65,9 @@ export default function Home() {
       <footer className="w-full max-w-7xl mx-auto p-6 text-center text-xs text-[var(--theme-text-secondary)] z-10 opacity-70">
         Birthday Vibes — Elegant Digital Birthday Experience Platform
       </footer>
+
+      {/* Motion Film Modal */}
+      <MotionFilmModal isOpen={isFilmOpen} onClose={() => setIsFilmOpen(false)} />
     </div>
   );
 }
-
