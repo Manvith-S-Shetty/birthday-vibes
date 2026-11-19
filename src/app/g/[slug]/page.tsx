@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { supabaseExperienceRepository } from "@/lib/experience/SupabaseExperienceRepository";
 import { ExperienceRenderer } from "@/components/experience/ExperienceRenderer";
 import { ExpiredExperienceView } from "@/components/experience/ExpiredExperienceView";
+import { AudioProvider } from "@/components/audio/AudioProvider";
 import { isRecipientAuthorized } from "@/lib/security/session";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +86,6 @@ export default async function RecipientExperiencePage({
     notFound();
   }
 
-  // Consistent, polished expired experience view
   if (metadata.isExpired) {
     return (
       <ExpiredExperienceView
@@ -102,13 +102,15 @@ export default async function RecipientExperiencePage({
     const payload = await supabaseExperienceRepository.getProtectedPayload(params.slug);
     if (payload) {
       return (
-        <ExperienceRenderer
-          key={params.slug}
-          data={payload}
-          initialUnlocked={true}
-          isPreview={false}
-          showSceneNavigation={false}
-        />
+        <AudioProvider>
+          <ExperienceRenderer
+            key={params.slug}
+            data={payload}
+            initialUnlocked={true}
+            isPreview={false}
+            showSceneNavigation={false}
+          />
+        </AudioProvider>
       );
     }
   }
@@ -116,24 +118,26 @@ export default async function RecipientExperiencePage({
   // PIN-protected experience with no active authorization:
   // Render ONLY the locked cover scene data. Do NOT expose private messages, photos, or media.
   return (
-    <ExperienceRenderer
-      key={params.slug}
-      data={{
-        id: params.slug,
-        slug: params.slug,
-        recipientName: metadata.recipientName,
-        birthdayDate: metadata.birthdayDate,
-        themeId: metadata.themeId as any,
-        personalMessage: "",
-        photos: [],
-        isPinProtected: isProtected,
-        isExpired: false,
-        expiresAt: metadata.expiresAt,
-        createdAt: new Date().toISOString(),
-      }}
-      initialUnlocked={!isProtected}
-      isPreview={false}
-      showSceneNavigation={false}
-    />
+    <AudioProvider>
+      <ExperienceRenderer
+        key={params.slug}
+        data={{
+          id: params.slug,
+          slug: params.slug,
+          recipientName: metadata.recipientName,
+          birthdayDate: metadata.birthdayDate,
+          themeId: metadata.themeId as any,
+          personalMessage: "",
+          photos: [],
+          isPinProtected: isProtected,
+          isExpired: false,
+          expiresAt: metadata.expiresAt,
+          createdAt: new Date().toISOString(),
+        }}
+        initialUnlocked={!isProtected}
+        isPreview={false}
+        showSceneNavigation={false}
+      />
+    </AudioProvider>
   );
 }
